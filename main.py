@@ -25,7 +25,7 @@ class PushWorker():
         # print(self.history)
 
     def reload_config(self):
-        with open("config.json","r") as config_file:
+        with open("config.json","r",encoding='utf-8') as config_file:
             config_data_raw = config_file.read()
         tmp_config_data = json.loads(config_data_raw)
         self.config_data = {}
@@ -39,9 +39,12 @@ class PushWorker():
                 tmp_history = pickle.load(hist_file)
         else:
             tmp_history = {}
+        del_list = []
         for h in tmp_history:
             if h not in self.config_data:
-                del tmp_history[h]
+                del_list.append(h)
+        for h in del_list:
+            del tmp_history[h]
         for c_d in self.config_data:
             if c_d not in tmp_history:
                 tmp_history[c_d] = {"time":0,"data":self.config_data[c_d]["startup_data"]}
@@ -72,10 +75,18 @@ class PushWorker():
         self.load_history()
 
     def update_item(self, config_data_item):
-        tmp_raw_data = self.SourceLoader.load_source(config_data_item["source"])
-        # print(tmp_raw_data)
+        if type(config_data_item["source"]["url"]) == str:
+            tmp_raw_data = self.SourceLoader.load_source(config_data_item["source"])
+        else:
+            tmp_url_raw_data = self.SourceLoader.load_source(config_data_item["source"]["url"]["source"])
+            tmp_url_parsed_data = self.DataParser.parse_data(config_data_item["source"]["url"]["data"], tmp_url_raw_data)
+            config_data_item["source"]["*url"] = config_data_item["source"]["url"]["base"].format(*tmp_url_parsed_data)
+            # print(config_data_item)
+            tmp_raw_data = self.SourceLoader.load_source(config_data_item["source"])
+            
+        #print(tmp_raw_data)
         tmp_parsed_data = self.DataParser.parse_data(config_data_item["data"], tmp_raw_data)
-        # print(tmp_parsed_data)
+        #print(tmp_parsed_data)
         res = condition_parser.condition_parser(config_data_item["condition"], tmp_parsed_data, self.history[config_data_item["name"]]["data"])
         # print(res)
         self.history[config_data_item["name"]]["data"] = tmp_parsed_data

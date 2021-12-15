@@ -61,29 +61,3 @@ def condition_parser(condition_list, data, hist_data):
             elif condition["conn"] == "or":
                 res = res or tmp_res
     return res
-    
-if __name__ == '__main__':
-    condition_text = '''
-        {"condition":[
-            {
-                "conn":"and",
-                "var":"timestamp", 
-                "op":"==",   
-                "target":100
-            },
-            {
-                "conn":"or",
-                "var":"$1", 
-                "op":"==",    
-                "target":100
-            }
-        ]}
-    '''
-    condition = json.loads(condition_text)
-    print(condition)
-
-    data = ["123", 90]
-
-
-    a = condition_parser(condition["condition"], ["123",100,"1233",False])
-    print(a)
