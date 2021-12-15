@@ -1,0 +1,5 @@
+/.VScodeCounter
+__pycache__
+*.pyc
+/config.json
+*.pkl

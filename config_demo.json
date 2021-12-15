@@ -1,0 +1,49 @@
+[
+    {
+        "name":"test",
+        "interval":5,
+        "startup_data":[0,0],
+
+        "source":{
+            "type":"no_auth",
+            "url":"",
+            "method":"GET",
+            "payload":""
+        },
+        
+        "data":[
+            {
+                "type":"regexp",
+                "exp":"",
+                "index":0
+            },
+            {
+                "type":"json",
+                "route":[]
+            }
+        ],
+
+        "condition":[
+            {
+                "conn":"and",
+                "var":"$0",
+                "op":"=",
+                "target":100
+            },
+            {
+                "conn":"or",
+                "var":"#0",
+                "op":"=",
+                "target":100
+            }
+        ],
+
+        "push":{
+            "type":"",
+            "url":"",
+            "method":"", 
+            "payload":""
+        }
+
+    }
+]
