@@ -17,6 +17,7 @@ class PushWorker():
         self.DataParser = data_parser.DataParserLoader()
         self.PushService = push_service.PushService()
         self.config_data = {}
+        self.dynamic_config = {}
         self.history = {}
 
         self.reload_config()
@@ -24,13 +25,47 @@ class PushWorker():
         self.load_history()
         # print(self.history)
 
+    def config_verify(self, config_item):
+        fields = ["name", "interval","startup_data","source","data","condition","push"]
+        for f in fields:
+            if f not in config_item:
+                return False
+        return True
+
     def reload_config(self):
         with open("config.json","r",encoding='utf-8') as config_file:
             config_data_raw = config_file.read()
         tmp_config_data = json.loads(config_data_raw)
         self.config_data = {}
+        self.dynamic_config = {}
         for c_d in tmp_config_data:
-            self.config_data[c_d["name"]] = c_d
+            # TODO: load dynamic config
+            if c_d["type"] == "static":
+                if self.config_verify(c_d):
+                    self.config_data[c_d["name"]] = c_d
+                else:
+                    print("[Main] Invalid config: {}".format(c_d.get("name")))
+            elif c_d["type"] == "dynamic":
+                self.dynamic_config[c_d["name"]] = c_d
+                self.dynamic_config[c_d["name"]]["last_update"] = 0.0
+        self.load_dynamaic_config()
+
+    def load_dynamaic_config(self):
+        for d_c in self.dynamic_config:
+            if self.dynamic_config[d_c]["last_update"] + self.dynamic_config[d_c]["update_interval"] <= time.time():
+                self.dynamic_config[d_c]["last_update"] = time.time()
+                self.dynamic_config[d_c]["config_source"]["*url"] = self.dynamic_url_load(self.dynamic_config[d_c]["config_source"]["url"])
+                tmp_raw_config = self.SourceLoader.load_source(self.dynamic_config[d_c]["config_source"])
+                tmp_config = json.loads(tmp_raw_config)
+                if self.config_verify(tmp_config):
+                    self.config_data[d_c] = tmp_config
+                else:
+                    print("[Main] Invalid dynamic config: {}".format(d_c))
+
+
+
+
+
 
     def load_history(self):
         print("[Main] Load history.")
@@ -73,16 +108,24 @@ class PushWorker():
         self.PushService.reload_push_sevice()
         self.reload_config()
         self.load_history()
+    
+    def dynamic_url_load(self,url_config):
+        # print(url_config)
+        if type(url_config) == str:
+            return url_config
+        else:
+            tmp_url = self.dynamic_url_load(url_config["source"]["url"])
+            url_config["source"]["*url"] = tmp_url
+            tmp_url_raw_data = self.SourceLoader.load_source(url_config["source"])
+            tmp_url_parsed_data = self.DataParser.parse_data(url_config["data"], tmp_url_raw_data)
+            # print(url_config["base"].format(*tmp_url_parsed_data))
+            return url_config["base"].format(*tmp_url_parsed_data)
 
     def update_item(self, config_data_item):
-        if type(config_data_item["source"]["url"]) == str:
-            tmp_raw_data = self.SourceLoader.load_source(config_data_item["source"])
-        else:
-            tmp_url_raw_data = self.SourceLoader.load_source(config_data_item["source"]["url"]["source"])
-            tmp_url_parsed_data = self.DataParser.parse_data(config_data_item["source"]["url"]["data"], tmp_url_raw_data)
-            config_data_item["source"]["*url"] = config_data_item["source"]["url"]["base"].format(*tmp_url_parsed_data)
-            # print(config_data_item)
-            tmp_raw_data = self.SourceLoader.load_source(config_data_item["source"])
+        # load url
+        config_data_item["source"]["*url"] = self.dynamic_url_load(config_data_item["source"]["url"])
+        # print(config_data_item)
+        tmp_raw_data = self.SourceLoader.load_source(config_data_item["source"])
             
         #print(tmp_raw_data)
         tmp_parsed_data = self.DataParser.parse_data(config_data_item["data"], tmp_raw_data)
@@ -113,6 +156,9 @@ class PushWorker():
             elif COMMAND == "save":
                 self.save_history()
             else:
+                # TODO: update configs
+                self.load_dynamaic_config()
+                # update tasks
                 threads = []
                 for config_data_name in self.config_data:
                     if self.history[config_data_name]["time"] + self.config_data[config_data_name]["interval"] <= time.time():

@@ -4,7 +4,7 @@ import json
 def do_push(push_config, data):
     push_payload = {
         "title":push_config["title"],
-        "text":data[1],
+        "text":push_config["text"].format(*data),
         "type":push_config["push_type"],
         "to":str(push_config["to"]),
         "token":push_config["token"]

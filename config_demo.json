@@ -1,5 +1,13 @@
 [
     {
+        "name":"test1",
+        "type":"dynamic",
+        "config_source":{
+
+        },
+        "update_interval":500
+    },
+    {
         "name":"test",
         "interval":5,
         "startup_data":[0,0],
