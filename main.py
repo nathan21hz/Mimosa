@@ -26,6 +26,7 @@ class PushWorker():
         # print(self.history)
 
     def config_verify(self, config_item):
+        """ Verify the config object """
         fields = ["name", "interval","startup_data","source","data","condition","push"]
         for f in fields:
             if f not in config_item:
@@ -33,6 +34,7 @@ class PushWorker():
         return True
 
     def reload_config(self):
+        """ Relaod config """
         with open("config.json","r",encoding='utf-8') as config_file:
             config_data_raw = config_file.read()
         tmp_config_data = json.loads(config_data_raw)
@@ -48,13 +50,14 @@ class PushWorker():
             elif c_d["type"] == "dynamic":
                 self.dynamic_config[c_d["name"]] = c_d
                 self.dynamic_config[c_d["name"]]["last_update"] = 0.0
-        self.load_dynamaic_config()
+        self.load_dynamic_config()
 
-    def load_dynamaic_config(self):
+    def load_dynamic_config(self):
+        """ Load the dynamic configs """
         for d_c in self.dynamic_config:
             if self.dynamic_config[d_c]["last_update"] + self.dynamic_config[d_c]["update_interval"] <= time.time():
                 self.dynamic_config[d_c]["last_update"] = time.time()
-                self.dynamic_config[d_c]["config_source"]["*url"] = self.dynamic_url_load(self.dynamic_config[d_c]["config_source"]["url"])
+                self.dynamic_config[d_c]["config_source"] = self.preprocess_source(self.dynamic_config[d_c]["config_source"])
                 tmp_raw_config = self.SourceLoader.load_source(self.dynamic_config[d_c]["config_source"])
                 tmp_config = json.loads(tmp_raw_config)
                 if self.config_verify(tmp_config):
@@ -62,12 +65,8 @@ class PushWorker():
                 else:
                     print("[Main] Invalid dynamic config: {}".format(d_c))
 
-
-
-
-
-
     def load_history(self):
+        """ Load history from file """
         print("[Main] Load history.")
         if os.path.isfile("history.pkl"):
             with open("history.pkl","rb") as hist_file:
@@ -86,11 +85,13 @@ class PushWorker():
         self.history = tmp_history
 
     def save_history(self):
+        """ Save history to file """
         print("[Main] Save history.")
         with open('history.pkl', 'wb') as hist_file:
             pickle.dump(self.history, hist_file)
 
     def clear_history(self,name=None):
+        """ Clear history of a job """
         print("[Main] Clear history: {}.".format(name))
         if not name:
             tmp_history = {}
@@ -101,6 +102,7 @@ class PushWorker():
             self.history[name] = {"time":0,"data":self.config_data[name]["startup_data"]}
 
     def reload(self):
+        """ Reload modules and configs """
         print("[Main] Reloading.")
         self.save_history()
         self.SourceLoader.reload_source_loader()
@@ -110,6 +112,7 @@ class PushWorker():
         self.load_history()
     
     def dynamic_url_load(self,url_config):
+        """ Dynamic URL object -> URL string """
         # print(url_config)
         if type(url_config) == str:
             return url_config
@@ -121,9 +124,21 @@ class PushWorker():
             # print(url_config["base"].format(*tmp_url_parsed_data))
             return url_config["base"].format(*tmp_url_parsed_data)
 
+    def preprocess_source(self,source_config):
+        """ Generate *url fields for all fields starts with url for source config """
+        tmp_dynamic_urls = {}
+        for item in source_config:
+            if item.startswith("url"):
+                tmp_dynamic_urls["*"+item] = self.dynamic_url_load(source_config[item])
+        for dynamic_url in tmp_dynamic_urls:
+            source_config[dynamic_url] = tmp_dynamic_urls[dynamic_url]
+        # print(source_config)
+        return source_config
+
     def update_item(self, config_data_item):
+        """ Update a job """
         # load url
-        config_data_item["source"]["*url"] = self.dynamic_url_load(config_data_item["source"]["url"])
+        config_data_item["source"] = self.preprocess_source(config_data_item["source"])
         # print(config_data_item)
         tmp_raw_data = self.SourceLoader.load_source(config_data_item["source"])
             
@@ -136,9 +151,10 @@ class PushWorker():
         if res:
             self.PushService.do_push(config_data_item["push"],tmp_parsed_data)
         else:
-            print("[Main][{}] No update.".format(config_data_item["name"]))
+            print("[Main] No update: {}.".format(config_data_item["name"]))
 
     def main_loop(self):
+        """ Main loop """
         global COMMAND
         print("[Main] Main worker loop started.")
         while True:
@@ -157,12 +173,12 @@ class PushWorker():
                 self.save_history()
             else:
                 # TODO: update configs
-                self.load_dynamaic_config()
+                self.load_dynamic_config()
                 # update tasks
                 threads = []
                 for config_data_name in self.config_data:
                     if self.history[config_data_name]["time"] + self.config_data[config_data_name]["interval"] <= time.time():
-                        print("[Main] {} is updating".format(config_data_name))
+                        print("[Main] Updating: {}.".format(config_data_name))
                         tmp_thread = threading.Thread(target=self.update_item, args=[self.config_data[config_data_name],])
                         tmp_thread.start()
                         self.history[config_data_name]["time"] = time.time()
@@ -176,6 +192,7 @@ class PushWorker():
 
 
 def control_loop():
+    """ Control loop for command input """
     global COMMAND
     pw = PushWorker()
     pw_thread = threading.Thread(target=pw.main_loop)
