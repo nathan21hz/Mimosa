@@ -1,6 +1,7 @@
 import os
 import importlib
 
+import utils.log as log
 
 # init source loader
 class SourceLoader():
@@ -22,10 +23,10 @@ class SourceLoader():
                 source_data = self.sources[source_config["type"]].get_source(source_config)
                 return source_data
             except Exception as e:
-                print("[Source][{}] {}".format(source_config["type"], str(e)))
+                log.error(["Source", source_config["type"]], str(e))
                 return None
         else:
-            print("[Source] No such source type: {}.".format(source_config["type"]))
+            log.error(["Source"], "No such source type: {}.".format(source_config["type"]))
             return None
 
 

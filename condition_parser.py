@@ -1,5 +1,6 @@
 import json
 import time
+import utils.log as log
 
 op_dict = {
     "==": lambda a,b: a == b,
@@ -16,13 +17,13 @@ def var_parser(var,data,hist_data):
         if var.startswith("$"):
             var_index = int(var[1:])
             if var_index >= len(data):
-                print("[Condition_Parser] Data index error")
+                log.error(["Condition"], "Data index error")
             else:
                 tmp_var = data[var_index]
         elif var.startswith("#"):
             var_index = int(var[1:])
             if var_index >= len(hist_data):
-                print("[Condition_Parser] Data index error")
+                log.error(["Condition"], "Data index error")
             else:
                 tmp_var = hist_data[var_index]
         elif var == "*timestamp":
@@ -44,16 +45,16 @@ def condition_parser(condition_list, data, hist_data):
         # print(tmp_var,tmp_target)
         # compare operation
         if condition["op"] not in ["==", "<", ">", "<=", ">=", "!=", "in"]:
-            print("[Condition_Parser] Operation error")
+            log.error(["Condition"], "Operation error")
             continue
         try:
             tmp_res = op_dict[condition["op"]](tmp_var,tmp_target)
         except Exception as e:
-            print("[Condition_Parser] Operation error: {}".format(str(e)))
+            log.error(["Condition"], "Operation error: {}".format(str(e)))
             tmp_res = False
         # connection operation
         if condition["conn"] not in ["and", "or"]:
-            print("[Condition_Parser] Connection op error")
+            log.error(["Condition"], "Connection op error")
             continue
         else:
             if condition["conn"] == "and":

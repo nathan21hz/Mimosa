@@ -9,7 +9,7 @@ def do_push(push_config, data):
         "to":str(push_config["to"]),
         "token":push_config["token"]
     }
-    a = requests.post(push_config["url"],data=json.dumps(push_payload))
+    a = requests.post(push_config["url"],data=json.dumps(push_payload),timeout=10)
     if a.json()["state"] == 0:
         return True, "OK"
     else:

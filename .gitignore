@@ -1,5 +1,5 @@
 /.VScodeCounter
 __pycache__
 *.pyc
-/config.json
+/tasks.json
 *.pkl

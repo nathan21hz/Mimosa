@@ -12,19 +12,24 @@
 - save: 保存任务历史数据 
 
 ## 配置文件
-> JSON （详见config_demo.json），除以下配置项外可视需求添加，支持动态加载
-### 动态加载配置
+> JSON， 默认为 config.json
+- LOG_LEVEL: 日志级别，默认0
+- TASK_FILE: 任务文件名，默认tasks.json
+
+## 任务文件
+> JSON （详见tasks_demo.json），除以下配置项外可视需求添加，支持动态加载
+### 动态加载任务
 - name: 任务名，会替换掉动态加载的任务名
 - type: "dynamic"
-- config_source: 配置源，格式同 source 数据源
-- update_interval: 配置更新间隔，秒
+- config_source: 任务源，格式同 source 数据源
+- update_interval: 任务配置更新间隔，秒
 
-> 动态加载的文件格式同静态配置的一个任务项
+> 动态加载的文件格式同静态任务的一个任务项
 
-### 静态配置
+### 静态任务
 - name: 任务名
 - type: "static"
-- interval: 更新间隔（秒）
+- interval: 数据更新间隔（秒）
 - startup_data: 启动时数据（作为首次爬取时的上一次变量）
 
 #### source 数据源

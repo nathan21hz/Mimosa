@@ -1,4 +1,5 @@
 import requests
+import utils.log as log
 
 SOURCE_NAME = "no_auth"
 
@@ -16,8 +17,8 @@ def get_source(source):
         r = requests.get(url, headers=headers)
         return r.text
     elif method == "POST":
-        r = requests.post(url, headers=headers, data=source["payload"])
+        r = requests.post(url, headers=headers, data=source["payload"], timeout=10)
         return r.text
     else:
-        print("[Source][no_auth] Meothod error")
+        log.error(["Source","no_auth"], "Method error.")
         return ""

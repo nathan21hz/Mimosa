@@ -1,6 +1,7 @@
 import os
 import importlib
 import copy
+import utils.log as log
 
 
 # Data parser loader
@@ -32,8 +33,10 @@ class DataParserLoader():
                     del tmp_raw_data
                 except Exception as e:
                     print("[Data][{}] {}".format(data_config_item["type"], str(e)))
+                    log.error(["Data", data_config_item["type"]], str(e))
                     parsed_data.append(None)
             else:
-                print("[Data] No such data type: {}.".format(data_config_item["type"]))
+                log.error(["Data"], "No such data type: {}.".format(data_config_item["type"]))
                 parsed_data.append(None)
+        log.debug(["Data"], str(parsed_data))
         return parsed_data
