@@ -49,6 +49,7 @@ class PushWorker():
             if t_d["type"] == "static":
                 if self.task_verify(t_d):
                     self.task_data[t_d["name"]] = t_d
+                    self.task_data[t_d["name"]]["running"] = True
                     log.info(["Main"], "Static task loaded: {}".format(t_d["name"]))
                 else:
                     log.error(["Main"], "Invalid static task:  {}".format(t_d.get("name")))
@@ -67,6 +68,7 @@ class PushWorker():
                 tmp_task = json.loads(tmp_raw_task)
                 if self.task_verify(tmp_task):
                     self.task_data[d_t] = tmp_task
+                    self.task_data[d_t]["running"] = True
                     log.info(["Main"], "Dynamic task loaded: {}".format(d_t))
                 else:
                     log.error(["Main"], "Invalid dynamic task:  {}".format(d_t))
@@ -108,7 +110,21 @@ class PushWorker():
             if name in self.history:
                 self.history[name] = {"time":0,"data":self.task_data[name]["startup_data"]}
             else:
-                log.error(["Main"], "No history: {}.".format(name))
+                log.error(["Main"], "No such task: {}.".format(name))
+
+    def start_task(self, name):
+        if not name or name not in self.task_data:
+            log.error(["Main"], "No such task: {}.".format(name))
+        else:
+            self.task_data[name]["running"] = True
+            log.info(["Main"], "Task is started: {}.".format(name))
+
+    def stop_task(self, name):
+        if not name or name not in self.task_data:
+            log.error(["Main"], "No such task: {}.".format(name))
+        else:
+            self.task_data[name]["running"] = False
+            log.info(["Main"], "Task is stopped: {}.".format(name))
 
     def reload(self):
         """ Reload modules and tasks """
@@ -169,7 +185,7 @@ class PushWorker():
         global COMMAND
         log.info(["Main"], "Main worker loop started.")
         while True:
-            if COMMAND == "stop":
+            if COMMAND == "exit":
                 log.info(["Main"], "Stopping.")
                 break
             elif COMMAND == "reload":
@@ -180,6 +196,18 @@ class PushWorker():
                     self.clear_history()
                 else:
                     self.clear_history(comm_argv[1])
+            elif COMMAND.startswith("start"):
+                comm_argv = COMMAND.split(" ")
+                if len(comm_argv) == 1:
+                    log.info(["Main"], "Please specify the task.")
+                else:
+                    self.start_task(comm_argv[1])
+            elif COMMAND.startswith("stop"):
+                comm_argv = COMMAND.split(" ")
+                if len(comm_argv) == 1:
+                    log.info(["Main"], "Please specify the task.")
+                else:
+                    self.stop_task(comm_argv[1])
             elif COMMAND == "save":
                 self.save_history()
             else:
@@ -188,7 +216,8 @@ class PushWorker():
                 # update tasks
                 threads = []
                 for task_data_name in self.task_data:
-                    if self.history[task_data_name]["time"] + self.task_data[task_data_name]["interval"] <= time.time():
+                    if self.history[task_data_name]["time"] + self.task_data[task_data_name]["interval"] <= time.time() \
+                    and self.task_data[task_data_name]["running"]:
                         log.info(["Main"], "Updating: {}.".format(task_data_name))
                         tmp_thread = threading.Thread(target=self.update_item, args=[self.task_data[task_data_name],])
                         tmp_thread.start()
@@ -211,22 +240,34 @@ def control_loop():
     while True:
         try:
             tmp_COMMAND = input()
-            if tmp_COMMAND == "stop":
-                COMMAND = "stop"
+            if tmp_COMMAND == "exit":
+                COMMAND = "exit"
                 pw_thread.join()
                 break
             elif tmp_COMMAND == "help":
-                print("stop: Exit the program; \
+                print("exit: Exit the program; \
                     \nreload: Reload modules and task file; \
+                    \nstart <task>: Start the task;\
+                    \nstop <task>: Stop the task;\
                     \nclear [task]: Clear history data of a task; \
                     \nsave: Save the history to file.")
             COMMAND = tmp_COMMAND
             time.sleep(0.05)
         except(KeyboardInterrupt, SystemExit):
-            COMMAND = "stop"
+            COMMAND = "exit"
             pw_thread.join()
             break
 
+LOGO = """
+    __  ___ _                               
+   /  |/  /(_)____ ___   ____   _____ ____ _
+  / /|_/ // // __ `__ \ / __ \ / ___// __ `/
+ / /  / // // / / / / // /_/ /(__  )/ /_/ / 
+/_/  /_//_//_/ /_/ /_/ \____//____/ \__,_/ 
+  An AIO Clawer/Monitor/MsgPush Framework
+"""
+
 if __name__ == "__main__":
+    print(LOGO)
     cfg.load_config()
     control_loop()

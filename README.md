@@ -2,7 +2,7 @@
   <img height="128" width="128" src="./img/logo.png" />
 </p>
 <h1 align="center">Mimosa</h1>
-<p align="center">爬虫/数据监控/推送整合工具</p>
+<p align="center">一体化 <i>爬虫/数据监控/推送</i> 工具</p>
 
 
 ## 功能特点
@@ -12,6 +12,8 @@
 ## 命令
 - stop: 结束
 - reload: 重载功能模块和任务配置文件
+- start \<任务名\>: 开始任务
+- stop \<任务名\>: 结束任务
 - clear [任务名]: 清除任务历史数据
 - save: 保存任务历史数据 
 
