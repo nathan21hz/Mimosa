@@ -1,8 +1,9 @@
-<div style="text-align:center">
- <img height="128" width="128" src="./img/logo.png" />
- <h1>Mimosa</h1>
- 爬虫/数据监控/推送整合工具
-</div>
+<p align="center">
+  <img height="128" width="128" src="./img/logo.png" />
+</p>
+<h1 align="center">Mimosa</h1>
+<p align="center">爬虫/数据监控/推送整合工具</p>
+
 
 ## 功能特点
 - 爬虫、数据解析、推送均为模块化设计
