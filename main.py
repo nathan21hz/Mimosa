@@ -24,8 +24,6 @@ class PushWorker():
         self.dynamic_task = {}
         self.history = {}
 
-        cfg.load_config()
-
         self.reload_task()
         # print(self.last_trigger)
         self.load_history()
@@ -200,7 +198,7 @@ class PushWorker():
                     t.join()
             COMMAND = ""
             time.sleep(0.5)
-        
+        # Before stop
         self.save_history()
 
 
@@ -211,13 +209,24 @@ def control_loop():
     pw_thread = threading.Thread(target=pw.main_loop)
     pw_thread.start()
     while True:
-        tmp_COMMAND = input()
-        if tmp_COMMAND == "stop":
+        try:
+            tmp_COMMAND = input()
+            if tmp_COMMAND == "stop":
+                COMMAND = "stop"
+                pw_thread.join()
+                break
+            elif tmp_COMMAND == "help":
+                print("stop: Exit the program; \
+                    \nreload: Reload modules and task file; \
+                    \nclear [task]: Clear history data of a task; \
+                    \nsave: Save the history to file.")
+            COMMAND = tmp_COMMAND
+            time.sleep(0.05)
+        except(KeyboardInterrupt, SystemExit):
             COMMAND = "stop"
             pw_thread.join()
             break
-        COMMAND = tmp_COMMAND
-        time.sleep(0.05)
 
 if __name__ == "__main__":
+    cfg.load_config()
     control_loop()

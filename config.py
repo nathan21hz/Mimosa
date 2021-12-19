@@ -17,13 +17,14 @@ def get_value(key,defValue=None):
         return defValue
 
 def load_config(cfg_filename="config.json"):
+    log.info(["config"], "Loading.")
     with open(cfg_filename,"r") as cfg_file:
         cfg_str = cfg_file.read()
         try:
             config_json = json.loads(cfg_str)
         except Exception as e:
-            log.error("Config File Format Error")
-            log.error(e)
+            log.error(["Config"],"Config File Format Error")
+            log.error(["Config"],e)
             exit(1)
     for index in config_json:
         set_value(index,config_json[index])
