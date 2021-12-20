@@ -75,6 +75,76 @@
 > 推送配置，模块存放于push文件夹下
 - type: 模块名，须于文件名相同
 
+## HTTP API
+#### [GET] /api/tasks 任务列表
+response:
+```
+{
+  "status":"success",
+  "msg":"成功",
+  "data":[
+    {
+      "name":"xxx",
+      "type":"static",
+      "running":true,
+      "last_updat":"1970-01-01 08:00:00",
+      "data":["test", 0]
+    },
+    ...
+  ]
+}
+```
+#### [GET] /api/tesk/\<name\> 任务详情
+response:
+```
+{
+  "status":"success",
+  "msg":"成功",
+  "data":
+    {
+      "name":"xxx",
+      "type":"static",
+      "running":true,
+      "last_updat":"1970-01-01 08:00:00",
+      "data":["test", 0]
+      "raw":"......."    # 任务的原始配置
+    }
+}
+```
+#### [POST] /api/task/\<name\>/running 开始/暂停任务
+request body:
+```
+{
+  "running":true # 开始  /  false # 暂停
+}
+```
+respinse:
+```
+{
+  "status":"success",
+  "msg":"任务已开始",
+  "data":{}
+}
+```
+#### [POST] /api/task/\<name\>/clear 清空历史数据
+respinse:
+```
+{
+  "status":"success",
+  "msg":"清理历史数据成功",
+  "data":{}
+}
+```
+#### [POST] /api/reload 重载任务配置
+respinse:
+```
+{
+  "status":"success",
+  "msg":"重载成功",
+  "data":{}
+}
+```
+
 ## TODO
-- HTTP API
+- HTTP API 添加临时任务
 - 完善log组件

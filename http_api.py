@@ -1,4 +1,4 @@
-from flask import Flask, request, abort
+from flask import Flask, request, abort, render_template
 import time
 import requests
 import config as cfg
@@ -52,8 +52,7 @@ class HTTPApi():
         self.app.run("0.0.0.0",cfg.get_value("API_PORT",8080),False)
 
     def index(self):
-        """ / """
-        return ""
+        return render_template("index.html")
 
     def get_task_list(self):
         """ [GET] /api/tasks """
@@ -67,7 +66,7 @@ class HTTPApi():
                 "data":self.pw.history[task_name]["data"]
             })
         res_data = {
-            "status":"ok",
+            "status":"success",
             "msg":"成功",
             "data":res_data_list
         }
@@ -92,7 +91,7 @@ class HTTPApi():
                 "raw":json.dumps(self.pw.task_data[name])
             }
             res_data = {
-                "status":"ok",
+                "status":"success",
                 "msg":"成功",
                 "data":res_data_detail
             }
@@ -103,7 +102,7 @@ class HTTPApi():
         req_text = request.data
         task_config = json.loads(req_text)
         if self.pw.task_verify(task_config):
-            res = "ok"
+            res = "success"
         else:
             res = "error"
         return res
@@ -123,11 +122,11 @@ class HTTPApi():
             tmp_running = req_data.get("running")
             if tmp_running == True:
                 self.pw.start_task(name)
-                tmp_status = "ok"
+                tmp_status = "success"
                 tmp_msg = "任务已开始"
             elif tmp_running == False:
                 self.pw.stop_task(name)
-                tmp_status = "ok"
+                tmp_status = "success"
                 tmp_msg = "任务已暂停"
             else:
                 tmp_status = "error"
@@ -153,7 +152,7 @@ class HTTPApi():
         else:
             self.pw.clear_history(name)
             res_data = {
-                "status":"ok",
+                "status":"success",
                 "msg":"清理历史数据成功",
                 "data":{}
             }
@@ -163,7 +162,7 @@ class HTTPApi():
         """ [POST] /api/reload """
         self.pw.reload()
         res_data = {
-            "status":"ok",
+            "status":"success",
             "msg":"重载成功",
             "data":{}
         }

@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Mimosa Dashboard</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <link href="https://cdn.bootcss.com/element-ui/2.12.0/theme-chalk/index.css" rel="stylesheet">
+</head>
+<body style="margin: 0px;font-family: 'Helvetica Neue',Helvetica,'PingFang SC','Hiragino Sans GB','Microsoft YaHei','微软雅黑',Arial,sans-serif;">
+  <div id="app" v-loading.fullscreen.lock="loading">
+      <el-container>
+        <el-header style="background: #99a9bf;text-align: center;color: white;height:auto;">
+          <h2>Mimosa Dashboard</h2>
+        </el-header>
+        <el-main>
+          <el-table
+            :data="tasks"
+            style="width: 100%">
+            <el-table-column type="expand">
+              <template slot-scope="props">
+                数据：<< props.row.data >>
+              </template>
+            </el-table-column>
+            <el-table-column
+              prop="name"
+              label="任务名"
+              width="180">
+            </el-table-column>
+            <el-table-column
+              prop="type"
+              label="类型"
+              width="180">
+            </el-table-column>
+            <el-table-column
+              label="运行中">
+              <template slot-scope="scope"><< bool2string(scope.row.running) >></template>
+            </el-table-column>
+            <el-table-column
+              prop="last_update"
+              label="上次更新">
+            </el-table-column>
+            <el-table-column
+              label="操作">
+              <template slot-scope="scope">
+                <el-button
+                  @click="toggle_task(scope.row.name, scope.row.running)"
+                  type="text"
+                  size="small">
+                  暂停/继续
+                </el-button>
+                <el-button
+                  @click="clear_task(scope.row.name)"
+                  type="text"
+                  size="small">
+                  清除历史
+                </el-button>
+              </template>
+            </el-table-column>
+          </el-table><br>
+          <div align="center">
+            <el-button  type="warning" @click="reload_all()" plain>重新加载任务</el-button>
+          </div>
+        </el-main>
+        <el-footer style="color: #C0C4CC;text-align: center; font-size: 12px">
+          Mimosa Dashboard<br>
+          ©2021 <a style="text-decoration: none;color: #E9EEF3;" href="https://github.com/nathan21hz">Nathan Cui</a>
+        </el-footer>
+      </el-container>
+    </div>
+</body>
+<script src="https://cdn.bootcss.com/vue/2.5.22/vue.min.js"></script>
+<script src="https://cdn.bootcss.com/element-ui/2.4.11/index.js"></script>
+<script src="https://cdn.bootcss.com/vue-resource/1.5.1/vue-resource.min.js"></script>
+<script>
+    var app = new Vue({
+      delimiters: ["<<", ">>"],
+      el: '#app',
+      data:{
+        loading: false,
+        tasks: [],
+        timer: null
+      },
+      computed:{
+      },
+      methods: {
+        update_tasks(){
+          this.$http.get('/api/tasks').then(function(response){
+            if(response.data.status == "success"){
+              this.tasks = response.data.data
+            } else {
+              this.$message({
+                message: response.data.msg,
+                type: response.data.status
+              });
+            }
+            this.loading = false
+          }, function(response){
+            this.loading = false
+          });
+        },
+        toggle_task(task_name,running){
+          this.$http.post('/api/task/'+task_name+'/running', {running:!running}).then(function(response){
+            this.$message({
+              message: response.data.msg,
+              type: response.data.status
+            });
+            this.loading = false
+            this.update_tasks()
+          }, function(response){
+            this.loading = false
+          });
+        },
+        clear_task(task_name){
+          this.$http.post('/api/task/'+task_name+'/clear', {}).then(function(response){
+            this.$message({
+              message: response.data.msg,
+              type: response.data.status
+            });
+            this.loading = false
+            this.update_tasks()
+          }, function(response){
+            this.loading = false
+          });
+        },
+        reload_all(){
+          this.$http.post('/api/reload', {}).then(function(response){
+            this.$message({
+              message: response.data.msg,
+              type: response.data.status
+            });
+            this.loading = false
+            this.update_tasks()
+          }, function(response){
+            this.loading = false
+          });
+        },
+        bool2string(value){
+          if(value == true){
+            return "是"
+          } else {
+            return "否"
+          }
+        }
+
+      },
+      mounted: function () {
+        this.update_tasks()
+        this.timer = setInterval(this.update_tasks, 10000)
+      },
+      beforeDestroy() {
+        clearInterval(this.timer);
+      }
+    })
+  </script>
+</html>
