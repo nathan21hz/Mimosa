@@ -1,4 +1,7 @@
 {
     "LOG_LEVEL": 0,
-    "TASK_FILE": "tasks.json"
+    "TASK_FILE": "tasks.json",
+    "HTTP_API": true,
+    "API_PORT": 8080,
+    "API_ALLOW_WRITE": true
 }

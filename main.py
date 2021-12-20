@@ -1,8 +1,10 @@
 import os
 import json
+from sys import api_version
 import time
 import threading
 import pickle
+import requests
 
 import config as cfg
 cfg._init()
@@ -12,6 +14,7 @@ import source_loader
 import data_parser
 import condition_parser
 import push_service
+import http_api
 
 COMMAND = ""
 
@@ -237,12 +240,19 @@ def control_loop():
     pw = PushWorker()
     pw_thread = threading.Thread(target=pw.main_loop)
     pw_thread.start()
+    if cfg.get_value("HTTP_API", False):
+        api = http_api.HTTPApi(pw)
+        api_thread = threading.Thread(target=api.run)
+        api_thread.start()
     while True:
         try:
             tmp_COMMAND = input()
             if tmp_COMMAND == "exit":
                 COMMAND = "exit"
                 pw_thread.join()
+                if cfg.get_value("HTTP_API", False):
+                    requests.get("http://127.0.0.1:{}/shutdown".format(cfg.get_value("API_PORT", 8080)))
+                    api_thread.join()
                 break
             elif tmp_COMMAND == "help":
                 print("exit: Exit the program; \
@@ -251,7 +261,8 @@ def control_loop():
                     \nstop <task>: Stop the task;\
                     \nclear [task]: Clear history data of a task; \
                     \nsave: Save the history to file.")
-            COMMAND = tmp_COMMAND
+            else:
+                COMMAND = tmp_COMMAND
             time.sleep(0.05)
         except(KeyboardInterrupt, SystemExit):
             COMMAND = "exit"
