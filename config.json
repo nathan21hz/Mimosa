@@ -3,5 +3,6 @@
     "TASK_FILE": "tasks.json",
     "HTTP_API": true,
     "API_PORT": 8080,
-    "API_ALLOW_WRITE": true
+    "API_ALLOW_WRITE": true,
+    "API_VERIFY_URL": ""
 }

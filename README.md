@@ -21,6 +21,18 @@
 > JSON， 默认为 config.json
 - LOG_LEVEL: 日志级别，默认`0`
 - TASK_FILE: 任务文件名，默认`tasks.json`
+- HTTP_API: 是否打开HTTP API，默认`false`
+- API_PORT: HTTP API端口，默认`8080`
+- API_ALLOW_WRITE: 是否允许API进行控制，默认`false`
+- API_VERIFY_URL: 认证用URL，默认为空
+  > 当 API_VERIFY_URL 非空时，每次请求API时会先对该地址进行一次POST请求，request body为：
+  ```
+    {
+      "url":"http://xxx:8080/api/tasks?token=xxxx",  # 发起请求的url
+      "service":"mimosa"
+    }
+  ```
+  > 当且仅当收到的响应为`0`时，继续处理请求，否则返回状态401。
 
 ## 任务文件
 > JSON （详见tasks_demo.json），除以下配置项外可视需求添加，支持动态加载

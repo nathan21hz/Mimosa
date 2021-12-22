@@ -33,7 +33,6 @@ class HTTPApi():
             self.app.add_url_rule("/api/task/<name>/clear", view_func=self.post_task_clear, methods=['POST'])
             self.app.add_url_rule("/api/reload", view_func=self.post_reload, methods=['POST'])
 
-
         @self.app.before_request
         def verify_check():
             if request.path == "/shutdown":
@@ -44,7 +43,19 @@ class HTTPApi():
             else:
                 verify_url = cfg.get_value("API_VERIFY_URL","")
                 if verify_url:
-                    return
+                    verify_data = {
+                        "url":request.url,
+                        "service":"mimosa"
+                    }
+                    try:
+                        verify_req = requests.post(verify_url,data=json.dumps(verify_data))
+                        if verify_req.text == "0":
+                            return
+                        else:
+                            abort(401)
+                    except Exception as e:
+                        log.error(["API"],"Verify server error: {}.".format(str(e)))
+                        abort(401)
                 else:
                     return
 
