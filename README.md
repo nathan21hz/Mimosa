@@ -111,6 +111,27 @@ response:
     }
 }
 ```
+#### [POST] /api/tasks 新增在线任务
+仅支持`static` 任务，请求格式同任务配置文件，对在线任务会在其任务名前添加`online_`前缀。
+
+request body:
+```
+[
+    {
+        "name":"test",
+        "type":"static",
+        "interval":300,
+        "startup_data":[ ... ],
+        "source":{ ... },
+        "data":[ ... ],
+        "condition":[ ... ],
+        "push": { ... }
+    }
+]
+```
+#### [DELETE] /api/task/<name> 删除在线任务
+仅支持删除在线任务
+
 #### [POST] /api/task/\<name\>/running 开始/暂停任务
 request body:
 ```
@@ -118,7 +139,7 @@ request body:
   "running":true # 开始  /  false # 暂停
 }
 ```
-respinse:
+response:
 ```
 {
   "status":"success",
@@ -127,7 +148,7 @@ respinse:
 }
 ```
 #### [POST] /api/task/\<name\>/clear 清空历史数据
-respinse:
+response:
 ```
 {
   "status":"success",
@@ -136,7 +157,9 @@ respinse:
 }
 ```
 #### [POST] /api/reload 重载任务配置
-respinse:
+重载后在线任务将被删除
+
+response:
 ```
 {
   "status":"success",
@@ -146,5 +169,5 @@ respinse:
 ```
 
 ## TODO
-- HTTP API 添加临时任务
+- HTTP API 认证
 - 完善log组件
