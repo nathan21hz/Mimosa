@@ -25,6 +25,7 @@ class PushWorker():
         self.PushService = push_service.PushService()
         self.task_data = {}
         self.dynamic_task = {}
+        self.online_task = {}
         self.history = {}
 
         self.reload_task()
@@ -35,9 +36,12 @@ class PushWorker():
     def task_verify(self, task_item):
         """ Verify the task object """
         fields = ["name", "interval","startup_data","source","data","condition","push"]
-        for f in fields:
-            if f not in task_item:
-                return False
+        try:
+            for f in fields:
+                if f not in task_item:
+                    return False
+        except:
+            return False
         return True
 
     def reload_task(self):
@@ -47,6 +51,7 @@ class PushWorker():
             task_data_raw = task_file.read()
         tmp_task_data = json.loads(task_data_raw)
         self.task_data = {}
+        self.online_task = {}
         self.dynamic_task = {}
         for t_d in tmp_task_data:
             if t_d["type"] == "static":
@@ -75,6 +80,28 @@ class PushWorker():
                     log.info(["Main"], "Dynamic task loaded: {}".format(d_t))
                 else:
                     log.error(["Main"], "Invalid dynamic task:  {}".format(d_t))
+
+    def load_online_task(self, tmp_online_task):
+        """ Load online task """
+        if self.task_verify(tmp_online_task):
+            tmp_online_task["name"] = "online_" + tmp_online_task["name"]
+            tmp_online_task["type"] = "online"
+            tmp_online_task["running"] = True
+            self.online_task[tmp_online_task["name"]] = tmp_online_task
+
+            self.history[tmp_online_task["name"]] = {"time":0,"data":tmp_online_task["startup_data"]}
+
+            return True
+        else:
+            return False
+
+    def del_online_task(self, name):
+        """ Delete online task """
+        if not name or name not in self.online_task:
+            return False
+        else:
+            del self.online_task[name]
+            return True
 
     def load_history(self):
         """ Load history from file """
@@ -105,29 +132,43 @@ class PushWorker():
         """ Clear history of a job """
         log.info(["Main"], "Clear history: {}.".format(name))
         if not name:
-            tmp_history = {}
-            for t_d in self.task_data:
-                tmp_history[t_d] = {"time":0,"data":self.task_data[t_d]["startup_data"]}
-            self.history = tmp_history
+            log.error(["Main"], "Please specify the task name.")
         else:
-            if name in self.history:
+            if name in self.task_data:
                 self.history[name] = {"time":0,"data":self.task_data[name]["startup_data"]}
+            elif name in self.online_task:
+                self.history[name] = {"time":0,"data":self.online_task[name]["startup_data"]}
             else:
                 log.error(["Main"], "No such task: {}.".format(name))
 
     def start_task(self, name):
-        if not name or name not in self.task_data:
-            log.error(["Main"], "No such task: {}.".format(name))
+        if not name:
+            log.error(["Main"], "Please specify the task name.")
         else:
-            self.task_data[name]["running"] = True
-            log.info(["Main"], "Task is started: {}.".format(name))
+            if name in self.task_data:
+                self.task_data[name]["running"] = True
+                log.info(["Main"], "Task is started: {}.".format(name))
+
+            elif name in self.online_task:
+                self.online_task[name]["running"] = True
+                log.info(["Main"], "Task is started: {}.".format(name))
+            else:
+                log.error(["Main"], "No such task: {}.".format(name))
 
     def stop_task(self, name):
-        if not name or name not in self.task_data:
-            log.error(["Main"], "No such task: {}.".format(name))
+        if not name:
+            log.error(["Main"], "Please specify the task name.")
         else:
-            self.task_data[name]["running"] = False
-            log.info(["Main"], "Task is stopped: {}.".format(name))
+            if name in self.task_data:
+                self.task_data[name]["running"] = False
+                log.info(["Main"], "Task is stopped: {}.".format(name))
+
+            elif name in self.online_task:
+                self.online_task[name]["running"] = False
+                log.info(["Main"], "Task is stopped: {}.".format(name))
+            else:
+                log.error(["Main"], "No such task: {}.".format(name))
+
 
     def reload(self):
         """ Reload modules and tasks """
@@ -218,6 +259,7 @@ class PushWorker():
                 self.load_dynamic_task()
                 # update tasks
                 threads = []
+                # update local tasks
                 for task_data_name in self.task_data:
                     if self.history[task_data_name]["time"] + self.task_data[task_data_name]["interval"] <= time.time() \
                     and self.task_data[task_data_name]["running"]:
@@ -225,6 +267,15 @@ class PushWorker():
                         tmp_thread = threading.Thread(target=self.update_item, args=[self.task_data[task_data_name],])
                         tmp_thread.start()
                         self.history[task_data_name]["time"] = time.time()
+                        threads.append(tmp_thread)
+                # update online tasks
+                for online_task_name in self.online_task:
+                    if self.history[online_task_name]["time"] + self.online_task[online_task_name]["interval"] <= time.time() \
+                    and self.online_task[online_task_name]["running"]:
+                        log.info(["Main"], "Updating: {}.".format(online_task_name))
+                        tmp_thread = threading.Thread(target=self.update_item, args=[self.online_task[online_task_name],])
+                        tmp_thread.start()
+                        self.history[online_task_name]["time"] = time.time()
                         threads.append(tmp_thread)
                 for t in threads:
                     t.join()

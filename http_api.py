@@ -27,7 +27,8 @@ class HTTPApi():
 
         # POST API
         if cfg.get_value("API_ALLOW_WRITE", False):
-            # self.app.add_url_rule("/api/tasks", view_func=self.post_task, methods=['POST'])
+            self.app.add_url_rule("/api/tasks", view_func=self.post_task, methods=['POST'])
+            self.app.add_url_rule("/api/task/<name>", view_func=self.del_task, methods=['DELETE'])
             self.app.add_url_rule("/api/task/<name>/running", view_func=self.post_task_running, methods=['POST'])
             self.app.add_url_rule("/api/task/<name>/clear", view_func=self.post_task_clear, methods=['POST'])
             self.app.add_url_rule("/api/reload", view_func=self.post_reload, methods=['POST'])
@@ -62,6 +63,14 @@ class HTTPApi():
                 "name":self.pw.task_data[task_name]["name"],
                 "type":self.pw.task_data[task_name]["type"],
                 "running":self.pw.task_data[task_name]["running"],
+                "last_update":timestamp2str(self.pw.history[task_name]["time"]),
+                "data":self.pw.history[task_name]["data"]
+            })
+        for task_name in self.pw.online_task:
+            res_data_list.append({
+                "name":self.pw.online_task[task_name]["name"],
+                "type":self.pw.online_task[task_name]["type"],
+                "running":self.pw.online_task[task_name]["running"],
                 "last_update":timestamp2str(self.pw.history[task_name]["time"]),
                 "data":self.pw.history[task_name]["data"]
             })
@@ -101,22 +110,39 @@ class HTTPApi():
         """ [POST] /api/tasks """
         req_text = request.data
         task_config = json.loads(req_text)
-        if self.pw.task_verify(task_config):
-            res = "success"
+        if self.pw.load_online_task(task_config):
+            tmp_status = "success"
+            tmp_msg = "新增任务成功"
         else:
-            res = "error"
-        return res
+            tmp_status = "error"
+            tmp_msg = "新增任务失败，格式错误"
+        res_data = {
+                "status":tmp_status,
+                "msg":tmp_msg,
+                "data":{}
+            }
+        return json.dumps(res_data)
+
+    def del_task(self, name):
+        """ [DELETE] /api/task/<name> """
+        del_success = self.pw.del_online_task(name)
+        if del_success:
+            tmp_status = "success"
+            tmp_msg = "删除任务成功"
+        else:
+            tmp_status = "error"
+            tmp_msg = "删除任务失败，任务名错误"
+        res_data = {
+                "status":tmp_status,
+                "msg":tmp_msg,
+                "data":{}
+            }
+        return json.dumps(res_data)
+
 
     def post_task_running(self,name):
         """ [POST] /api/task/<name>/running """
-        if name not in self.pw.task_data:
-            res_data = {
-                "status":"error",
-                "msg":"没有对应的任务",
-                "data":{}
-            }
-            return json.dumps(res_data)
-        else:
+        if name in self.pw.task_data or name in self.pw.online_task:
             req_text = request.data
             req_data = json.loads(req_text)
             tmp_running = req_data.get("running")
@@ -139,21 +165,29 @@ class HTTPApi():
                 "data":{}
             }
             return json.dumps(res_data)
+        else:
 
-    def post_task_clear(self,name):
-        """ [POST] /api/task/<name>/clear """
-        if name not in self.pw.task_data:
             res_data = {
                 "status":"error",
                 "msg":"没有对应的任务",
                 "data":{}
             }
             return json.dumps(res_data)
-        else:
+
+    def post_task_clear(self,name):
+        """ [POST] /api/task/<name>/clear """
+        if name in self.pw.task_data or name in self.pw.online_task:
             self.pw.clear_history(name)
             res_data = {
                 "status":"success",
                 "msg":"清理历史数据成功",
+                "data":{}
+            }
+            return json.dumps(res_data)
+        else:
+            res_data = {
+                "status":"error",
+                "msg":"没有对应的任务",
                 "data":{}
             }
             return json.dumps(res_data)

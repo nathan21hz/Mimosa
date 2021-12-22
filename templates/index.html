@@ -23,13 +23,11 @@
             </el-table-column>
             <el-table-column
               prop="name"
-              label="任务名"
-              width="180">
+              label="任务名">
             </el-table-column>
             <el-table-column
               prop="type"
-              label="类型"
-              width="180">
+              label="类型">
             </el-table-column>
             <el-table-column
               label="运行中">
@@ -54,11 +52,27 @@
                   size="small">
                   清除历史
                 </el-button>
+                <el-button
+                  v-if="scope.row.type=='online'"
+                  @click="del_task(scope.row.name)"
+                  type="text"
+                  size="small">
+                  删除任务
+                </el-button>
               </template>
             </el-table-column>
           </el-table><br>
           <div align="center">
-            <el-button  type="warning" @click="reload_all()" plain>重新加载任务</el-button>
+            <el-button  type="warning" @click="reload_all()" plain>重新加载所有任务</el-button>
+          </div><br>
+          <el-input
+            type="textarea"
+            :autosize="{ minRows: 2, maxRows: 20}"
+            placeholder="请输入内容"
+            v-model="task_raw_input">
+          </el-input><br><br>
+          <div align="center">
+            <el-button  type="primary" @click="upload_task()" plain>添加任务</el-button>
           </div>
         </el-main>
         <el-footer style="color: #C0C4CC;text-align: center; font-size: 12px">
@@ -78,7 +92,8 @@
       data:{
         loading: false,
         tasks: [],
-        timer: null
+        timer: null,
+        task_raw_input:""
       },
       computed:{
       },
@@ -123,7 +138,43 @@
           });
         },
         reload_all(){
-          this.$http.post('/api/reload', {}).then(function(response){
+          this.$http.delete('/api/task/'+task_name).then(function(response){
+            this.$message({
+              message: response.data.msg,
+              type: response.data.status
+            });
+            this.loading = false
+            this.update_tasks()
+          }, function(response){
+            this.loading = false
+          });
+        },
+        upload_task(){
+          var task_input = ""
+          try {
+            task_input = JSON.parse(this.task_raw_input);
+            console.log(task_input)
+          }
+          catch (e) {
+            this.$message({
+              message: "格式错误",
+              type: "error"
+            });
+            return
+          }
+          this.$http.post('/api/tasks', task_input).then(function(response){
+            this.$message({
+              message: response.data.msg,
+              type: response.data.status
+            });
+            this.loading = false
+            this.update_tasks()
+          }, function(response){
+            this.loading = false
+          });
+        },
+        del_task(task_name){
+          this.$http.delete('/api/task/'+task_name).then(function(response){
             this.$message({
               message: response.data.msg,
               type: response.data.status
@@ -141,7 +192,6 @@
             return "否"
           }
         }
-
       },
       mounted: function () {
         this.update_tasks()
