@@ -141,8 +141,25 @@ request body:
     }
 ]
 ```
+response:
+```
+{
+  "status":"success",
+  "msg":"新增任务成功",
+  "data":{}
+}
+```
+
 #### [DELETE] /api/task/<name> 删除在线任务
 仅支持删除在线任务
+response:
+```
+{
+  "status":"success",
+  "msg":"删除任务成功",
+  "data":{}
+}
+```
 
 #### [POST] /api/task/\<name\>/running 开始/暂停任务
 request body:
@@ -170,7 +187,6 @@ response:
 ```
 #### [POST] /api/reload 重载任务配置
 重载后在线任务将被删除
-
 response:
 ```
 {
@@ -181,5 +197,5 @@ response:
 ```
 
 ## TODO
-- HTTP API 认证
+- 数据解析部分支持表达式
 - 完善log组件

@@ -101,7 +101,7 @@ class HTTPApi():
                 "data":{}
             }
             return json.dumps(res_data)
-        else:
+        if name in self.pw.task_data:
             res_data_detail = {
                 "name":self.pw.task_data[name]["name"],
                 "type":self.pw.task_data[name]["type"],
@@ -110,12 +110,30 @@ class HTTPApi():
                 "data":self.pw.history[name]["data"],
                 "raw":json.dumps(self.pw.task_data[name])
             }
-            res_data = {
-                "status":"success",
-                "msg":"成功",
-                "data":res_data_detail
+            tmp_status = "success"
+            tmp_meg = "成功"
+        elif name in self.pw.online_task:
+            res_data_detail = {
+                "name":self.pw.online_task[name]["name"],
+                "type":self.pw.online_task[name]["type"],
+                "running":self.pw.online_task[name]["running"],
+                "last_update":timestamp2str(self.pw.history[name]["time"]),
+                "data":self.pw.history[name]["data"],
+                "raw":json.dumps(self.pw.online_task[name])
             }
-            return json.dumps(res_data)
+            tmp_status = "success"
+            tmp_meg = "成功"
+        else:
+            res_data_detail = {}
+            tmp_status = "error"
+            tmp_meg = "没有对应的任务"
+            
+        res_data = {
+            "status":tmp_status,
+            "msg":tmp_meg,
+            "data":res_data_detail
+        }
+        return json.dumps(res_data)
 
     def post_task(self):
         """ [POST] /api/tasks """
