@@ -88,6 +88,7 @@ class HTTPApi():
         res_data = {
             "status":"success",
             "msg":"成功",
+            "log":log.get_log_record(),
             "data":res_data_list
         }
         return json.dumps(res_data)

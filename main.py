@@ -9,6 +9,7 @@ import requests
 import config as cfg
 cfg._init()
 import utils.log as log
+log._init()
 
 import source_loader
 import data_parser
@@ -318,7 +319,11 @@ def control_loop():
         except(KeyboardInterrupt, SystemExit):
             COMMAND = "exit"
             pw_thread.join()
+            if cfg.get_value("HTTP_API", False):
+                requests.get("http://127.0.0.1:{}/shutdown".format(cfg.get_value("API_PORT", 8080)))
+                api_thread.join()
             break
+                    
 
 LOGO = """
     __  ___ _                               

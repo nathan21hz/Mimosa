@@ -15,9 +15,13 @@ def get_source(source):
         url = source["url"]
     if method == "GET":
         r = requests.get(url, headers=headers)
+        if source.get("encoding"):
+            r.encoding = source["encoding"]
         return r.text
     elif method == "POST":
         r = requests.post(url, headers=headers, data=source["payload"], timeout=10)
+        if source.get("encoding"):
+            r.encoding = source["encoding"]
         return r.text
     else:
         log.error(["Source","no_auth"], "Method error.")

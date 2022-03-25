@@ -67,6 +67,13 @@
           </div><br>
           <el-input
             type="textarea"
+            :autosize="{ minRows: 8, maxRows: 15}"
+            placeholder="Loading..."
+            v-model="log_record">
+          </el-input>
+          <br><br>
+          <el-input
+            type="textarea"
             :autosize="{ minRows: 2, maxRows: 20}"
             placeholder="请输入内容"
             v-model="task_raw_input">
@@ -94,7 +101,8 @@
         tasks: [],
         timer: null,
         task_raw_input:"",
-        token: ""
+        token: "",
+        log_record: ""
       },
       computed:{
       },
@@ -103,6 +111,7 @@
           this.$http.get('/api/tasks?token='+this.token).then(function(response){
             if(response.data.status == "success"){
               this.tasks = response.data.data
+              this.log_record = response.data.log
             } else {
               this.$message({
                 message: response.data.msg,
