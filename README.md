@@ -106,7 +106,7 @@ response:
   ]
 }
 ```
-#### [GET] /api/tesk/\<name\> 任务详情
+#### [GET] /api/task/\<name\> 任务详情
 response:
 ```
 {

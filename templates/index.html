@@ -148,7 +148,7 @@
           });
         },
         reload_all(){
-          this.$http.delete('/api/task/'+task_name+'/?token='+this.token).then(function(response){
+          this.$http.post('/api/reload?token='+this.token).then(function(response){
             this.$message({
               message: response.data.msg,
               type: response.data.status
