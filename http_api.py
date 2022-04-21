@@ -95,13 +95,6 @@ class HTTPApi():
 
     def get_tast_detial(self,name):
         """ [GET] /api/task/<name> """
-        if name not in self.pw.task_data:
-            res_data = {
-                "status":"error",
-                "msg":"没有对应的任务",
-                "data":{}
-            }
-            return json.dumps(res_data)
         if name in self.pw.task_data:
             res_data_detail = {
                 "name":self.pw.task_data[name]["name"],
@@ -239,10 +232,3 @@ class HTTPApi():
             raise RuntimeError('Not running werkzeug')
         shutdown_func()
         return "Shutting down..."
-
-    
-
-            
-    
-    
-

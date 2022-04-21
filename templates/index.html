@@ -15,7 +15,8 @@
         <el-main>
           <el-table
             :data="tasks"
-            style="width: 100%">
+            style="width: 100%"
+            v-on:row-dblclick="task_config_to_input">
             <el-table-column type="expand">
               <template slot-scope="props">
                 数据：<< props.row.data >>
@@ -123,6 +124,21 @@
             this.loading = false
           });
         },
+        task_config_to_input(row, column, event){
+          this.$http.get('/api/task/'+row.task_name+'?token='+this.token).then(function(response){
+            if(response.data.status == "success"){
+              this.task_raw_input = response.data.data.raw
+            } else {
+              this.$message({
+                message: response.data.msg,
+                type: response.data.status
+              });
+            }
+            this.loading = false
+          }, function(response){
+            this.loading = false
+          });
+        },
         toggle_task(task_name,running){
           this.$http.post('/api/task/'+task_name+'/running?token='+this.token, {running:!running}).then(function(response){
             this.$message({
@@ -184,7 +200,7 @@
           });
         },
         del_task(task_name){
-          this.$http.delete('/api/task/'+task_name+'/?token='+this.token).then(function(response){
+          this.$http.delete('/api/task/'+task_name+'?token='+this.token).then(function(response){
             this.$message({
               message: response.data.msg,
               type: response.data.status
