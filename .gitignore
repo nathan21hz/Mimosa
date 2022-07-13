@@ -1,4 +1,4 @@
-/.VScodeCounter
+\.VSCodeCounter
 __pycache__
 *.pyc
 /tasks.json

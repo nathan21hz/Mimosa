@@ -13,6 +13,7 @@ log._init()
 
 import source_loader
 import data_parser
+import renderer_parser
 import condition_parser
 import push_service
 import http_api
@@ -23,6 +24,7 @@ class PushWorker():
     def __init__(self) -> None:
         self.SourceLoader = source_loader.SourceLoader()
         self.DataParser = data_parser.DataParserLoader()
+        self.RendererParser = renderer_parser.RendererParserLoader()
         self.PushService = push_service.PushService()
         self.task_data = {}
         self.dynamic_task = {}
@@ -213,15 +215,21 @@ class PushWorker():
         task_data_item["source"] = self.preprocess_source(task_data_item["source"])
         # print(task_data_item)
         tmp_raw_data = self.SourceLoader.load_source(task_data_item["source"])
-            
         #print(tmp_raw_data)
         tmp_parsed_data = self.DataParser.parse_data(task_data_item["data"], tmp_raw_data)
         #print(tmp_parsed_data)
-        res = condition_parser.condition_parser(task_data_item["condition"], tmp_parsed_data, self.history[task_data_item["name"]]["data"])
+        if "renderer" in task_data_item:
+            tmp_rendered_data = self.RendererParser.do_render(task_data_item["renderer"], tmp_parsed_data, self.history[task_data_item["name"]]["data"])
+            res = condition_parser.condition_parser(task_data_item["condition"], tmp_rendered_data, [])
+        else:
+            tmp_rendered_data = tmp_parsed_data
+            res = condition_parser.condition_parser(task_data_item["condition"], tmp_rendered_data, self.history[task_data_item["name"]]["data"])
         # print(res)
+
         self.history[task_data_item["name"]]["data"] = tmp_parsed_data
+
         if res:
-            self.PushService.do_push(task_data_item["push"],tmp_parsed_data)
+            self.PushService.do_push(task_data_item["push"],tmp_rendered_data)
         else:
             log.info(["Main"], "Push condition not satisfied: {}.".format(task_data_item["name"]))
 
