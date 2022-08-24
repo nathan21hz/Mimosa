@@ -60,7 +60,8 @@ class PushWorker():
             if t_d["type"] == "static":
                 if self.task_verify(t_d):
                     self.task_data[t_d["name"]] = t_d
-                    self.task_data[t_d["name"]]["running"] = True
+                    self.task_data[t_d["name"]]["running"] = self.task_data[t_d["name"]].get("running", True)
+
                     log.info(["Main"], "Static task loaded: {}".format(t_d["name"]))
                 else:
                     log.error(["Main"], "Invalid static task:  {}".format(t_d.get("name")))

@@ -95,6 +95,18 @@
 > 推送配置，模块存放于push文件夹下
 - type: 模块名，须于文件名相同
 
+## Workflow 工作流程
+```mermaid
+  flowchart LR
+
+  A[Hard] -->|Text| B(Round)
+  B --> C{Decision}
+  C -->|One| D[Result 1]
+  C -->|Two| E[Result 2]
+  
+```
+
+
 ## HTTP API
 #### [GET] /api/tasks 任务列表
 response:
