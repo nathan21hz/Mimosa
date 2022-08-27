@@ -113,7 +113,7 @@ class HTTPApi():
                 "running":self.pw.online_task[name]["running"],
                 "last_update":timestamp2str(self.pw.history[name]["time"]),
                 "data":self.pw.history[name]["data"],
-                "raw":json.dumps(self.pw.online_task[name])
+                "raw":json.dumps(self.pw.online_task[name], indent=2)
             }
             tmp_status = "success"
             tmp_meg = "成功"

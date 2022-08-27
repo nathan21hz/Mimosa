@@ -46,12 +46,12 @@
             }
         ],
 
-        "push":{
+        "push":[{
             "type":"",
             "url":"",
             "method":"", 
             "payload":""
-        }
+        }]
 
     }
 ]

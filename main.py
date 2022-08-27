@@ -230,7 +230,13 @@ class PushWorker():
         self.history[task_data_item["name"]]["data"] = tmp_parsed_data
 
         if res:
-            self.PushService.do_push(task_data_item["push"],tmp_rendered_data)
+            if isinstance(task_data_item["push"],dict):
+                self.PushService.do_push(task_data_item["push"],tmp_rendered_data)
+            elif isinstance(task_data_item["push"],list):
+                for push_channel in task_data_item["push"]:
+                    self.PushService.do_push(push_channel,tmp_rendered_data)
+            else:
+                log.error(["Main"], "Push channel config error: {}.".format(task_data_item["name"]))
         else:
             log.info(["Main"], "Push condition not satisfied: {}.".format(task_data_item["name"]))
 
@@ -304,6 +310,7 @@ def control_loop():
     if cfg.get_value("HTTP_API", False):
         api = http_api.HTTPApi(pw)
         api_thread = threading.Thread(target=api.run)
+        api_thread.daemon = True
         api_thread.start()
     while True:
         try:
@@ -311,10 +318,7 @@ def control_loop():
             if tmp_COMMAND == "exit":
                 COMMAND = "exit"
                 pw_thread.join()
-                if cfg.get_value("HTTP_API", False):
-                    requests.get("http://127.0.0.1:{}/shutdown".format(cfg.get_value("API_PORT", 8080)))
-                    api_thread.join()
-                break
+                exit(0)
             elif tmp_COMMAND == "help":
                 print("exit: Exit the program; \
                     \nreload: Reload modules and task file; \
@@ -328,10 +332,7 @@ def control_loop():
         except(KeyboardInterrupt, SystemExit):
             COMMAND = "exit"
             pw_thread.join()
-            if cfg.get_value("HTTP_API", False):
-                requests.get("http://127.0.0.1:{}/shutdown".format(cfg.get_value("API_PORT", 8080)))
-                api_thread.join()
-            break
+            exit(0)
                     
 
 LOGO = """
