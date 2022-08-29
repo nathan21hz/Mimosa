@@ -39,6 +39,6 @@ def warning(route, info):
 
 def error(route, info):
     time_str = time.strftime("[%H:%M:%S]", time.localtime())
-    log_str = time_str + "[INFO]" + route2str(route) + " " + str(info)
+    log_str = time_str + "[ERROR]" + route2str(route) + " " + str(info)
     add_log_record(log_str)
     print(log_str)

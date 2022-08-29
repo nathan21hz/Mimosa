@@ -52,7 +52,11 @@ class PushWorker():
         task_file = cfg.get_value("TASK_FILE", "tasks.json")
         with open(task_file,"r",encoding='utf-8') as task_file:
             task_data_raw = task_file.read()
-        tmp_task_data = json.loads(task_data_raw)
+        try:
+            tmp_task_data = json.loads(task_data_raw)
+        except:
+            log.error(["Main"], "Invalid task config file.")
+            return
         self.task_data = {}
         self.online_task = {}
         self.dynamic_task = {}
