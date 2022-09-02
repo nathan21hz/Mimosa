@@ -1,6 +1,7 @@
 import os
 import importlib
 
+import config as cfg
 import utils.log as log
 
 # init source loader
@@ -10,11 +11,18 @@ class SourceLoader():
         self.reload_source_loader()
         
     def reload_source_loader(self):
-        source_files = os.listdir("./source")
         sources = {}
+        source_files = os.listdir("./source")
         for s_f in source_files:
             source_name = s_f.split(".")[0]
             sources[source_name] = importlib.import_module("source."+source_name)
+
+        external_module_folder = cfg.get_value("EXTERNAL_MODULE_FOLDER", "")
+        if external_module_folder != "":
+            external_source_files = os.listdir(external_module_folder+"/source")
+            for e_s_f in external_source_files:
+                e_source_name = e_s_f.split(".")[0]
+                sources[e_source_name] = importlib.import_module(external_module_folder.replace("/",".")+".source."+e_source_name)
         self.sources = sources
         
     def load_source(self, source_config):
