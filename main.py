@@ -50,16 +50,12 @@ class PushWorker():
     def reload_task(self):
         """ Relaod tasks """
         task_file = cfg.get_value("TASK_FILE", "tasks.json")
-        if os.path.exists(task_file):
-            with open(task_file,"r",encoding='utf-8') as task_file:
-                task_data_raw = task_file.read()
-            try:
-                tmp_task_data = json.loads(task_data_raw)
-            except:
-                log.error(["Main"], "Invalid task config file.")
-                return
-        else:
-            log.error(["Main"], "No task config file.")
+        with open(task_file,"r",encoding='utf-8') as task_file:
+            task_data_raw = task_file.read()
+        try:
+            tmp_task_data = json.loads(task_data_raw)
+        except:
+            log.error(["Main"], "Invalid task config file.")
             return
         self.task_data = {}
         self.online_task = {}

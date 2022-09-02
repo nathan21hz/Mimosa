@@ -4,4 +4,3 @@ __pycache__
 /tasks.json
 *.pkl
 /logs*
-/external*
