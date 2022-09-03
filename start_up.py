@@ -28,3 +28,9 @@ if external_module_folder != "":
 if os.path.exists(external_module_folder+"/requirements.txt"):
     print("Installing external packages...")
     pip.main(["install","-r",external_module_folder+"/requirements.txt"])
+
+# Create task config file
+test_config_file = cfg.get_value("TASK_FILE", "tasks.json")
+if not os.path.exists(test_config_file):
+    with open(test_config_file,"w") as f:
+        f.write("[]")
