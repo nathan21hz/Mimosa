@@ -13,13 +13,15 @@ def get_source(source):
         url = source["*url"]
     else:
         url = source["url"]
+
+    cookies = source.get("cookies",{})
     if method == "GET":
-        r = requests.get(url, headers=headers)
+        r = requests.get(url, headers=headers, cookies=cookies)
         if source.get("encoding"):
             r.encoding = source["encoding"]
         return r.text
     elif method == "POST":
-        r = requests.post(url, headers=headers, data=source["payload"], timeout=10)
+        r = requests.post(url, headers=headers, data=source["payload"], timeout=10, cookies=cookies)
         if source.get("encoding"):
             r.encoding = source["encoding"]
         return r.text
