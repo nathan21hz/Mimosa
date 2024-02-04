@@ -15,6 +15,8 @@ def get_source(source):
         url = source["url"]
 
     cookies = source.get("cookies",{})
+    custom_headers = source.get("header",{})
+    headers.update(custom_headers)
     if method == "GET":
         r = requests.get(url, headers=headers, cookies=cookies)
         if source.get("encoding"):
