@@ -5,5 +5,5 @@
     "API_PORT": 5000,
     "API_ALLOW_WRITE": true,
     "API_VERIFY_URL": "",
-    "EXTERNAL_MODULE_FOLDER":""
+    "EXTERNAL_MODULE_FOLDER":"external"
 }

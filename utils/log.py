@@ -4,7 +4,7 @@ import config as cfg
 
 def _init():
     global _global_log_record
-    _global_log_record = deque([],20)
+    _global_log_record = deque([],100)
 
 def get_log_record():
     return "\n".join(_global_log_record)

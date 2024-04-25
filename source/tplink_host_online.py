@@ -17,7 +17,7 @@ def get_source(source):
             "password": key
         },
         "method": "do"
-    })
+    }, timeout=10)
 
     token = r.json()["stok"]
 
@@ -28,7 +28,7 @@ def get_source(source):
             "table":"online_host"
         },
         "method":"get"
-    })
+    }, timeout=10)
     # print(r.json())
     host_list = r.json()["hosts_info"]["online_host"]
     host_name_list = []

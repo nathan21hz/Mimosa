@@ -48,7 +48,7 @@ class HTTPApi():
                         "service":"mimosa"
                     }
                     try:
-                        verify_req = requests.post(verify_url,data=json.dumps(verify_data))
+                        verify_req = requests.post(verify_url,data=json.dumps(verify_data), timeout=10)
                         if verify_req.text == "0":
                             return
                         else:

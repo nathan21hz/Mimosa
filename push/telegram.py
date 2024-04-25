@@ -9,7 +9,7 @@ def do_push(push_config, data):
         bot_token, 
         to,
         msg_text
-    ))
+    ), timeout=10)
     if a.json()["ok"] == True:
         return True, "OK"
     else:

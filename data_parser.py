@@ -17,14 +17,20 @@ class DataParserLoader():
         data_parser_files = os.listdir("./data")
         for dp_f in data_parser_files:
             data_parser_name = dp_f.split(".")[0]
-            data_parsers[data_parser_name] = importlib.import_module("data."+data_parser_name)
+            if data_parser_name in data_parsers:
+                importlib.reload(data_parsers[data_parser_name])
+            else:
+                data_parsers[data_parser_name] = importlib.import_module("data."+data_parser_name)
 
         external_module_folder = cfg.get_value("EXTERNAL_MODULE_FOLDER", "")
         if external_module_folder != "":
             external_data_parser_files = os.listdir(external_module_folder+"/data")
             for e_dp_f in external_data_parser_files:
                 e_data_parser_name = e_dp_f.split(".")[0]
-                data_parsers[e_data_parser_name] = importlib.import_module(external_module_folder.replace("/",".")+".data."+e_data_parser_name)
+                if e_data_parser_name in data_parsers:
+                    importlib.reload(data_parsers[e_data_parser_name])
+                else:
+                    data_parsers[e_data_parser_name] = importlib.import_module(external_module_folder.replace("/",".")+".data."+e_data_parser_name)
         self.data_parsers = data_parsers
 
     def parse_data(self, data_config, raw_data):
