@@ -118,8 +118,9 @@ class PushWorker():
     def load_history(self):
         """ Load history from file """
         log.info(["Main"], "Load history.")
-        if os.path.isfile("history.pkl"):
-            with open("history.pkl","rb") as hist_file:
+        hist_file_name = cfg.get_value("HISTORY_FILE", "history.pkl")
+        if os.path.isfile(hist_file_name):
+            with open(hist_file_name,"rb") as hist_file:
                 tmp_history = pickle.load(hist_file)
         else:
             tmp_history = {}
@@ -137,7 +138,8 @@ class PushWorker():
     def save_history(self):
         """ Save history to file """
         log.info(["Main"], "Save history to file.")
-        with open('history.pkl', 'wb') as hist_file:
+        hist_file_name = cfg.get_value("HISTORY_FILE", "history.pkl")
+        with open(hist_file_name, 'wb') as hist_file:
             pickle.dump(self.history, hist_file)
 
     def clear_history(self,name=None):
@@ -252,7 +254,9 @@ class PushWorker():
         """ Main loop """
         global COMMAND
         log.info(["Main"], "Main worker loop started.")
+        loop_count = 0
         while True:
+            loop_count += 1
             if COMMAND == "exit":
                 log.info(["Main"], "Stopping.")
                 break
@@ -305,6 +309,9 @@ class PushWorker():
                     t.join()
             COMMAND = ""
             time.sleep(0.5)
+            if loop_count == 1000:
+                self.save_history()
+                loop_count = 0
         # Before stop
         self.save_history()
 
