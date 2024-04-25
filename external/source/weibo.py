@@ -242,5 +242,3 @@ def get_source(source):
     parsed_weibos.sort(key=lambda x:x["created_at"],reverse=True)
     print(parsed_weibos)
     return json.dumps(parsed_weibos)
-
-a = get_source({"uid":"2266537042"})
