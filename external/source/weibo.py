@@ -91,9 +91,9 @@ def get_pics(weibo_info):
     if weibo_info.get("pics"):
         pic_info = weibo_info["pics"]
         pic_list = [pic["large"]["url"] for pic in pic_info]
-        pics = ",".join(pic_list)
+        pics = pic_list
     else:
-        pics = ""
+        pics = []
     return pics
 
 def get_topics(selector):
@@ -228,7 +228,6 @@ def get_source(source):
     weibos = wb_data_json["data"]["cards"]
     parsed_weibos = []
     for w in weibos:
-        print()
         if w["card_type"] == 11:
             temp = w.get("card_group",[0])
             if len(temp) >= 1:
@@ -240,5 +239,5 @@ def get_source(source):
             parsed_weibos.append(wb)
 
     parsed_weibos.sort(key=lambda x:x["created_at"],reverse=True)
-    print(parsed_weibos)
+    # print(parsed_weibos)
     return json.dumps(parsed_weibos)

@@ -188,9 +188,11 @@ class PushWorker():
         """ Reload modules and tasks """
         log.info(["Main"], "Reload started.")
         self.save_history()
+        log.info(["Main"], "Reloading modules.")
         self.SourceLoader.reload_source_loader()
         self.DataParser.reload_data_parser()
         self.PushService.reload_push_sevice()
+        log.info(["Main"], "Reloading tasks.")
         self.reload_task()
         self.load_history()
         log.info(["Main"], "Reload finished.")

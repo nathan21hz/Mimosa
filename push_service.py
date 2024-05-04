@@ -6,30 +6,31 @@ import utils.log as log
 
 class PushService():
     def __init__(self) -> None:
-        self.push_services = None
+        self.push_services = {}
         self.reload_push_sevice()
 
     def reload_push_sevice(self):
-        push_services = {}
         push_service_files = os.listdir("./push")
         for ps_f in push_service_files:
             push_service_name = ps_f.split(".")[0]
-            if push_service_name in push_services:
-                importlib.reload(push_services[push_service_name])
+            if push_service_name in self.push_services:
+                log.info(["Push"], "Reload module " + push_service_name)
+                importlib.reload(self.push_services[push_service_name])
             else:
-                push_services[push_service_name] = importlib.import_module("push."+push_service_name)
+                log.info(["Push"], "Load module " + push_service_name)
+                self.push_services[push_service_name] = importlib.import_module("push."+push_service_name)
 
         external_module_folder = cfg.get_value("EXTERNAL_MODULE_FOLDER", "")
         if external_module_folder != "":
             external_push_service_files = os.listdir(external_module_folder+"/push")
             for e_ps_f in external_push_service_files:
                 e_push_service_name = e_ps_f.split(".")[0]
-                if e_push_service_name in push_services:
-                    importlib.reload(push_services[e_push_service_name])
+                if e_push_service_name in self.push_services:
+                    log.info(["Push"], "Reload external module " + e_push_service_name)
+                    importlib.reload(self.push_services[e_push_service_name])
                 else:
-                    push_services[e_push_service_name] = importlib.import_module(external_module_folder.replace("/",".")+".push."+e_push_service_name)
-
-        self.push_services = push_services
+                    log.info(["Push"], "Load external module " + e_push_service_name)
+                    self.push_services[e_push_service_name] = importlib.import_module(external_module_folder.replace("/",".")+".push."+e_push_service_name)
 
     def do_push(self, push_config, data):
         if push_config["type"] in self.push_services:
