@@ -1,0 +1,21 @@
+.git
+.venv
+.vscode
+.VSCodeCounter
+**/__pycache__
+**/*.pyc
+.python-version
+pyproject.toml
+src
+
+# mounted at runtime
+external
+
+# local runtime files and secrets, the image uses config.docker.json
+config.json
+tasks.json
+*.pkl
+logs*
+
+Dockerfile
+.dockerignore

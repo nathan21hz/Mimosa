@@ -9,8 +9,8 @@ RECENT_LOG_SIZE = 100
 # LOG_LEVEL config value -> logging level, anything larger means ERROR
 LEVELS = {0: logging.DEBUG, 1: logging.DEBUG, 2: logging.INFO, 3: logging.WARNING}
 
-# third-party loggers that are too verbose at DEBUG
-QUIET_LOGGERS = ["urllib3", "charset_normalizer", "chardet"]
+# third-party loggers that are too verbose (debug output, a line per web request)
+QUIET_LOGGERS = ["urllib3", "charset_normalizer", "chardet", "werkzeug"]
 
 
 class RecentLogHandler(logging.Handler):

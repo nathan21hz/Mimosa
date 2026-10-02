@@ -1,15 +1,20 @@
+import os
 import time
 import queue
+import signal
 import logging
 import threading
+from concurrent.futures import Future
 
 import config as cfg
 import utils.log as log
 from worker import Worker
+from dashboard import Dashboard
 
 logger = logging.getLogger("main")
 
 HISTORY_SAVE_INTERVAL = 300  # seconds
+CALL_TIMEOUT = 60  # seconds a dashboard request waits for the main loop
 
 LOGO = r"""
     __  ___ _
@@ -68,20 +73,58 @@ def read_commands(commands):
             return
 
 
+class MainLoopClient():
+    """ Lets other threads (the dashboard) run something with the worker in the main loop and wait for the result """
+    def __init__(self, commands) -> None:
+        self.commands = commands
+
+    def call(self, func):
+        """ Run func(worker) in the main loop, return its result or raise its exception """
+        future = Future()
+        self.commands.put((func, future))
+        return future.result(timeout=CALL_TIMEOUT)
+
+
+def run_call(worker, func, future):
+    try:
+        future.set_result(func(worker))
+    except Exception as e:
+        future.set_exception(e)
+
+
 def main_loop(worker, commands):
+    """ Everything touching the worker runs here: command lines from stdin and calls from the dashboard """
     last_save = time.time()
     while True:
         try:
-            line = commands.get(timeout=0.5)
+            item = commands.get(timeout=0.5)
         except queue.Empty:
             pass
         else:
-            if not run_command(worker, line):
-                return
+            if isinstance(item, str):
+                if not run_command(worker, item):
+                    return
+            else:
+                run_call(worker, *item)
         worker.schedule()
         if time.time() - last_save >= HISTORY_SAVE_INTERVAL:
             worker.save_history()
             last_save = time.time()
+
+
+def prepare_files():
+    """ Create the external module folders and an empty task file if they are missing """
+    external_module_folder = cfg.get_value("EXTERNAL_MODULE_FOLDER", "")
+    if external_module_folder:
+        for sub_folder in ["source", "data", "renderer", "push"]:
+            os.makedirs(os.path.join(external_module_folder, sub_folder), exist_ok=True)
+    task_file = cfg.get_value("TASK_FILE", "tasks.json")
+    if not os.path.exists(task_file):
+        if os.path.dirname(task_file):
+            os.makedirs(os.path.dirname(task_file), exist_ok=True)
+        with open(task_file, "w", encoding="utf-8") as f:
+            f.write("[]")
+        logger.info("Created empty task file: {}.".format(task_file))
 
 
 def main():
@@ -90,16 +133,25 @@ def main():
     cfg._init()
     cfg.load_config()
     log.setup(cfg.get_value("LOG_LEVEL", 0))
+    prepare_files()
 
     worker = Worker()
+    # stop gracefully on SIGTERM (e.g. docker stop) the same way as Ctrl+C
+    signal.signal(signal.SIGTERM, signal.default_int_handler)
     commands = queue.Queue()
     threading.Thread(target=read_commands, args=(commands,), daemon=True).start()
+    web = None
+    if cfg.get_value("DASHBOARD", False):
+        web = Dashboard(MainLoopClient(commands))
+        web.start()
     logger.info("Main loop started.")
     try:
         main_loop(worker, commands)
     except KeyboardInterrupt:
         pass
     logger.info("Stopping.")
+    if web:
+        web.stop()
     worker.shutdown()
 
 

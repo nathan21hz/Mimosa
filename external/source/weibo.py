@@ -1,4 +1,4 @@
-# import utils.log as log
+import logging
 import requests
 import json
 from lxml import etree
@@ -9,8 +9,10 @@ from datetime import datetime
 
 SOURCE_NAME = "weibo"
 
+logger = logging.getLogger(__name__)
+
 user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/86.0.4240.111 Safari/537.36"
-headers = {"User_Agent": user_agent}
+headers = {"User-Agent": user_agent}
 DTFORMAT = "%Y-%m-%dT%H:%M:%S"
 
 def string_to_int(string):
@@ -121,11 +123,11 @@ def get_at_users(selector):
         at_users = ",".join(at_list)
     return at_users
 
-def get_long_weibo(id):
+def get_long_weibo(id, request_headers):
     """获取长微博"""
     for i in range(5):
         url = "https://m.weibo.cn/detail/%s" % id
-        html = requests.get(url, headers=headers, verify=False, timeout=10).text
+        html = requests.get(url, headers=request_headers, verify=False, timeout=10).text
         html = html[html.find('"status":') :]
         html = html[: html.rfind('"call"')]
         html = html[: html.rfind(",")]
@@ -176,7 +178,7 @@ def parse_weibo(weibo_info):
     weibo["at_users"] = get_at_users(selector)
     return standardize_info(weibo)
 
-def get_one_weibo(info):
+def get_one_weibo(info, request_headers):
     """获取一条微博的全部信息"""
     try:
         weibo_info = info["mblog"]
@@ -189,13 +191,13 @@ def get_one_weibo(info):
             retweet_id = retweeted_status.get("id")
             is_long_retweet = retweeted_status.get("isLongText")
             if is_long:
-                weibo = get_long_weibo(weibo_id)
+                weibo = get_long_weibo(weibo_id, request_headers)
                 if not weibo:
                     weibo = parse_weibo(weibo_info)
             else:
                 weibo = parse_weibo(weibo_info)
             if is_long_retweet:
-                retweet = get_long_weibo(retweet_id)
+                retweet = get_long_weibo(retweet_id, request_headers)
                 if not retweet:
                     retweet = parse_weibo(retweeted_status)
             else:
@@ -207,7 +209,7 @@ def get_one_weibo(info):
             weibo["retweet"] = retweet
         else:  # 原创
             if is_long:
-                weibo = get_long_weibo(weibo_id)
+                weibo = get_long_weibo(weibo_id, request_headers)
                 if not weibo:
                     weibo = parse_weibo(weibo_info)
             else:
@@ -219,9 +221,22 @@ def get_one_weibo(info):
     except Exception as e:
         raise e
 
+def parse_cookies(cookies_str):
+    if cookies_str.startswith("http"):
+        try:
+            r = requests.get(cookies_str, timeout=10)
+            return r.text
+        except requests.RequestException as e:
+            logger.warning("Failed to load cookie: %s", e)
+            return ""
+    else:
+        return cookies_str
+
 def get_source(source):
     wb_uid = source["uid"]
-    wb_req = requests.get("https://m.weibo.cn/api/container/getIndex?container_ext=profile_uid:{0}&containerid=230413{0}".format(wb_uid), headers=headers, timeout=10)
+    # per request copy, tasks may run in parallel with different cookies
+    request_headers = dict(headers, Cookie=parse_cookies(source.get("cookie","")))
+    wb_req = requests.get("https://m.weibo.cn/api/container/getIndex?container_ext=profile_uid:{0}&containerid=230413{0}".format(wb_uid), headers=request_headers, timeout=10)
 
     wb_data_json = wb_req.json()
 
@@ -235,7 +250,7 @@ def get_source(source):
             else:
                 w = w
         if w["card_type"] == 9:
-            wb = get_one_weibo(w)
+            wb = get_one_weibo(w, request_headers)
             parsed_weibos.append(wb)
 
     parsed_weibos.sort(key=lambda x:x["created_at"],reverse=True)

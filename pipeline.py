@@ -25,7 +25,7 @@ class Pipeline():
         self.push_services.reload_push_sevice()
 
     def run(self, task, hist_data):
-        """ Run a task once, return the parsed data to be kept as history.
+        """ Run a task once, return (parsed data to be kept as history, whether it pushed).
         Raises before condition and push if the source or any data item fails. """
         source = self.resolve_source(task["source"])
         raw_data = self.sources.load_source(source)
@@ -42,7 +42,7 @@ class Pipeline():
             self.push(task, output)
         else:
             logger.info("Push condition not satisfied: {}.".format(task["name"]))
-        return parsed_data
+        return parsed_data, bool(triggered)
 
     def push(self, task, output):
         channels = task["push"]

@@ -1,0 +1,584 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mimosa Dashboard</title>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --panel: #ffffff;
+    --border: #e3e6ea;
+    --text: #1d2329;
+    --muted: #6b7480;
+    --accent: #2f6fdf;
+    --accent-text: #ffffff;
+    --green: #1f8a4c;
+    --green-bg: #e3f4ea;
+    --blue: #2f6fdf;
+    --blue-bg: #e4ecfb;
+    --gray: #6b7480;
+    --gray-bg: #eceef1;
+    --red: #c93a32;
+    --red-bg: #fbe7e5;
+    --amber: #a86b00;
+    --code-bg: #f1f3f5;
+    --shadow: 0 1px 2px rgba(16, 24, 40, .06);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14171b;
+      --panel: #1c2026;
+      --border: #2c323a;
+      --text: #e6e9ed;
+      --muted: #8d96a1;
+      --accent: #5b8ff0;
+      --accent-text: #0e1116;
+      --green: #4cc483;
+      --green-bg: #183326;
+      --blue: #6e9cf3;
+      --blue-bg: #1c2a44;
+      --gray: #98a1ab;
+      --gray-bg: #272c33;
+      --red: #f0726a;
+      --red-bg: #3a1f1d;
+      --amber: #e0a63a;
+      --code-bg: #232830;
+      --shadow: none;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 20px 16px 40px; }
+
+  header { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+  header h1 { margin: 0; font-size: 20px; font-weight: 650; }
+  header h1 span { color: var(--muted); font-weight: 400; font-size: 14px; margin-left: 6px; }
+  .spacer { flex: 1; }
+  #refresh-state { color: var(--muted); font-size: 13px; }
+  #refresh-state.error { color: var(--red); }
+
+  button {
+    font: inherit;
+    border: 1px solid var(--border);
+    background: var(--panel);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 4px 10px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  button:hover:not(:disabled) { border-color: var(--muted); }
+  button:disabled { opacity: .5; cursor: default; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+  button.danger:hover:not(:disabled) { border-color: var(--red); color: var(--red); }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .stat { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; box-shadow: var(--shadow); }
+  .stat .label { color: var(--muted); font-size: 12px; }
+  .stat .value { font-size: 24px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .stat.bad .value { color: var(--red); }
+
+  .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow); }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+  th { color: var(--muted); font-weight: 500; font-size: 12px; white-space: nowrap; }
+  td.nowrap { white-space: nowrap; }
+  td.task { min-width: 140px; }
+  td.result { max-width: 360px; }
+  tr:last-child td { border-bottom: none; }
+  .name { font-weight: 600; overflow-wrap: anywhere; }
+  .sub { color: var(--muted); font-size: 12px; }
+  code, .mono { font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", monospace; font-size: 12px; }
+  .schedule code { background: var(--code-bg); padding: 1px 5px; border-radius: 4px; white-space: nowrap; }
+
+  .badge { white-space: nowrap; display: inline-flex; align-items: center; gap: 5px; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 500; }
+  .badge::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+  .badge.green { color: var(--green); background: var(--green-bg); }
+  .badge.blue { color: var(--blue); background: var(--blue-bg); }
+  .badge.blue::before { animation: pulse 1s ease-in-out infinite; }
+  .badge.gray { color: var(--gray); background: var(--gray-bg); }
+  .badge.red { color: var(--red); background: var(--red-bg); }
+  @keyframes pulse { 50% { opacity: .25; } }
+
+  .result-ok { color: var(--green); }
+  .result-quiet { color: var(--muted); }
+  .result-fail { color: var(--red); }
+  .error-text { color: var(--red); font-size: 12px; word-break: break-all; }
+  .result .error-text { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+
+  .data {
+    display: block;
+    max-width: 320px;
+    background: var(--code-bg);
+    border-radius: 4px;
+    padding: 4px 6px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    cursor: pointer;
+  }
+  .data.expanded { white-space: pre-wrap; word-break: break-all; max-height: 320px; overflow: auto; }
+  .actions { display: flex; gap: 6px; }
+  .empty { padding: 32px; text-align: center; color: var(--muted); }
+
+  details.logs { margin-top: 20px; }
+  details.logs summary { padding: 10px 14px; cursor: pointer; font-weight: 600; }
+  #logs {
+    margin: 0;
+    padding: 10px 14px;
+    border-top: 1px solid var(--border);
+    max-height: 360px;
+    overflow: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  #logs .ERROR { color: var(--red); }
+  #logs .WARNING { color: var(--amber); }
+  #logs .DEBUG { color: var(--muted); }
+
+  dialog {
+    width: min(860px, calc(100vw - 32px));
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 0;
+    background: var(--panel);
+    color: var(--text);
+  }
+  dialog::backdrop { background: rgba(0, 0, 0, .4); }
+  .dialog-head { padding: 14px 16px; border-bottom: 1px solid var(--border); font-weight: 600; word-break: break-all; }
+  .dialog-body { padding: 12px 16px; }
+  #editor {
+    width: 100%;
+    height: min(60vh, 560px);
+    resize: vertical;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--code-bg);
+    color: var(--text);
+    tab-size: 4;
+  }
+  #editor-error { min-height: 20px; margin-top: 8px; }
+  .dialog-foot { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border); align-items: center; }
+
+  #toast {
+    position: fixed;
+    left: 50%;
+    bottom: 24px;
+    transform: translateX(-50%);
+    background: var(--text);
+    color: var(--bg);
+    padding: 8px 14px;
+    border-radius: 6px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .2s;
+    max-width: calc(100vw - 32px);
+  }
+  #toast.show { opacity: 1; }
+  #toast.error { background: var(--red); color: #fff; }
+
+  /* cards on narrow screens */
+  @media (max-width: 900px) {
+    thead { display: none; }
+    table, tbody, tr, td { display: block; width: 100%; }
+    tr { border-bottom: 1px solid var(--border); padding: 8px 0; }
+    tr:last-child { border-bottom: none; }
+    td { border: none; padding: 4px 14px; }
+    td.nowrap, td.result { white-space: normal; max-width: none; }
+    .actions { flex-wrap: wrap; }
+    td[data-label]::before { content: attr(data-label); display: block; color: var(--muted); font-size: 12px; }
+    .data { max-width: 100%; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Mimosa<span>任务面板</span></h1>
+    <div class="spacer"></div>
+    <span id="refresh-state">加载中…</span>
+    <button id="add-task" title="新建一个任务并写入任务文件">新增任务</button>
+    <button id="reload-all" class="primary" title="重载全部插件模块和任务文件">重载全部</button>
+  </header>
+
+  <section class="stats" id="stats"></section>
+
+  <section class="panel">
+    <table>
+      <thead>
+        <tr><th>任务</th><th>状态</th><th>上次运行</th><th>下次运行</th><th>最近结果</th><th>最新数据</th><th>操作</th></tr>
+      </thead>
+      <tbody id="tasks"></tbody>
+    </table>
+  </section>
+
+  <details class="panel logs" id="logs-panel" open>
+    <summary>最近日志</summary>
+    <pre id="logs" class="mono"></pre>
+  </details>
+</div>
+
+<dialog id="edit-dialog">
+  <div class="dialog-head" id="edit-title">编辑任务</div>
+  <div class="dialog-body">
+    <textarea id="editor" class="mono" spellcheck="false"></textarea>
+    <div id="editor-error" class="error-text"></div>
+  </div>
+  <div class="dialog-foot">
+    <span class="sub" id="edit-hint"></span>
+    <div class="spacer"></div>
+    <button id="edit-format">格式化</button>
+    <button id="edit-cancel">取消</button>
+    <button id="edit-save" class="primary">保存</button>
+  </div>
+</dialog>
+
+<div id="toast"></div>
+
+<script>
+const REFRESH_MS = 3000;
+const TOKEN_KEY = "mimosa-token";
+const expanded = new Set();   // task names whose data cell is expanded
+let editingName = null;
+let refreshTimer = null;
+let lastRefresh = 0;
+
+// ---------- helpers ----------
+
+function storageGet(key) {
+  try { return localStorage.getItem(key) || ""; } catch (e) { return ""; }
+}
+function storageSet(key, value) {
+  try { localStorage.setItem(key, value); } catch (e) { /* storage unavailable */ }
+}
+
+async function api(method, path, body) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const options = { method, headers: { "X-Token": storageGet(TOKEN_KEY) } };
+    if (body !== undefined) {
+      options.headers["Content-Type"] = "application/json";
+      options.body = JSON.stringify(body);
+    }
+    const res = await fetch(path, options);
+    if (res.status === 401 && attempt === 0) {
+      const token = prompt("请输入 Dashboard Token（config.json 中的 DASHBOARD_TOKEN）");
+      if (token === null) break;
+      storageSet(TOKEN_KEY, token);
+      continue;
+    }
+    let data = null;
+    try { data = await res.json(); } catch (e) { /* not JSON */ }
+    if (!res.ok) throw new Error((data && data.error) || ("HTTP " + res.status));
+    return data;
+  }
+  throw new Error("未授权");
+}
+
+function el(tag, attrs, ...children) {
+  const node = document.createElement(tag);
+  for (const [key, value] of Object.entries(attrs || {})) {
+    if (key === "class") node.className = value;
+    else if (key.startsWith("on")) node.addEventListener(key.slice(2), value);
+    else if (value !== undefined && value !== null) node.setAttribute(key, value);
+  }
+  for (const child of children) {
+    if (child === null || child === undefined) continue;
+    node.append(child instanceof Node ? child : String(child));
+  }
+  return node;
+}
+
+function formatAbsolute(ts) {
+  const d = new Date(ts * 1000);
+  const pad = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+}
+
+function formatRelative(ts) {
+  const diff = Math.round(ts - Date.now() / 1000);
+  const abs = Math.abs(diff);
+  let text;
+  if (abs < 5) return diff >= 0 ? "即将" : "刚刚";
+  if (abs < 60) text = abs + " 秒";
+  else if (abs < 3600) text = Math.round(abs / 60) + " 分钟";
+  else if (abs < 86400) text = Math.round(abs / 3600) + " 小时";
+  else text = Math.round(abs / 86400) + " 天";
+  return diff > 0 ? text + "后" : text + "前";
+}
+
+function timeCell(ts) {
+  if (!ts) return el("span", { class: "sub" }, "—");
+  return el("span", { title: formatAbsolute(ts) }, formatRelative(ts));
+}
+
+function formatSchedule(task) {
+  if (task.cron) return el("code", {}, task.cron);
+  if (task.interval !== null && task.interval !== undefined) return "每 " + task.interval + " 秒";
+  return "";
+}
+
+let toastTimer = null;
+function toast(message, isError) {
+  const node = document.getElementById("toast");
+  node.textContent = message;
+  node.className = "show" + (isError ? " error" : "");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { node.className = isError ? "error" : ""; }, isError ? 5000 : 2500);
+}
+
+// ---------- rendering ----------
+
+function statusBadge(task) {
+  if (task.invalid) return el("span", { class: "badge red" }, "配置无效");
+  if (task.busy) return el("span", { class: "badge blue" }, "执行中");
+  if (task.running) return el("span", { class: "badge green" }, "运行中");
+  return el("span", { class: "badge gray" }, "已暂停");
+}
+
+function resultCell(task) {
+  if (task.invalid) return el("div", { class: "error-text" }, task.invalid);
+  const result = task.result;
+  if (!result) return el("span", { class: "sub" }, "—");
+  const when = el("div", { class: "sub", title: formatAbsolute(result.time) }, formatRelative(result.time));
+  if (!result.ok) {
+    return el("div", {},
+      el("span", { class: "result-fail" }, "失败"), when,
+      el("div", { class: "error-text", title: result.error }, result.error.length > 160 ? result.error.slice(0, 160) + "…" : result.error));
+  }
+  return el("div", {},
+    result.pushed ? el("span", { class: "result-ok" }, "成功 · 已推送") : el("span", { class: "result-quiet" }, "成功 · 未触发"),
+    when);
+}
+
+function dataCell(task) {
+  if (task.invalid) return el("span", { class: "sub" }, "—");
+  const isExpanded = expanded.has(task.name);
+  const text = isExpanded ? JSON.stringify(task.data, null, 2) : JSON.stringify(task.data);
+  return el("code", {
+    class: "data" + (isExpanded ? " expanded" : ""),
+    title: isExpanded ? "点击收起" : "点击展开",
+    onclick: () => {
+      if (expanded.has(task.name)) expanded.delete(task.name); else expanded.add(task.name);
+      refresh();
+    },
+  }, text);
+}
+
+function actionButton(label, handler, extraClass) {
+  const button = el("button", { class: extraClass || "" }, label);
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    try { await handler(); } finally { button.disabled = false; }
+  });
+  return button;
+}
+
+function actionsCell(task) {
+  const name = task.name;
+  const path = "/api/tasks/" + encodeURIComponent(name);
+  const buttons = [];
+  if (!task.invalid) {
+    buttons.push(task.running
+      ? actionButton("暂停", () => runAction("POST", path + "/stop", "已暂停：" + name))
+      : actionButton("启动", () => runAction("POST", path + "/start", "已启动：" + name)));
+    buttons.push(actionButton("清空历史", () => {
+      if (!confirm(`清空「${name}」的历史数据？\n历史会恢复为初始数据，运行中的任务会立即重新执行一次。`)) return;
+      return runAction("POST", path + "/clear", "已清空历史：" + name);
+    }, "danger"));
+  }
+  buttons.push(actionButton("编辑", () => openEditor(name)));
+  return el("div", { class: "actions" }, ...buttons);
+}
+
+function renderStats(tasks) {
+  const valid = tasks.filter(t => !t.invalid);
+  const items = [
+    ["任务总数", tasks.length, false],
+    ["运行中", valid.filter(t => t.running).length, false],
+    ["已暂停", valid.filter(t => !t.running).length, false],
+    ["最近失败", valid.filter(t => t.result && !t.result.ok).length, true],
+  ];
+  const invalid = tasks.length - valid.length;
+  if (invalid) items.push(["配置无效", invalid, true]);
+  document.getElementById("stats").replaceChildren(...items.map(([label, value, warn]) =>
+    el("div", { class: "stat" + (warn && value ? " bad" : "") },
+      el("div", { class: "label" }, label),
+      el("div", { class: "value" }, value))));
+}
+
+function renderTasks(tasks) {
+  const body = document.getElementById("tasks");
+  if (!tasks.length) {
+    body.replaceChildren(el("tr", {}, el("td", { colspan: 7, class: "empty" }, "还没有任务，点击右上角「新增任务」创建")));
+    return;
+  }
+  body.replaceChildren(...tasks.map(task => el("tr", {},
+    el("td", { class: "task" }, el("div", { class: "name" }, task.name), el("div", { class: "sub schedule" }, task.invalid ? "" : formatSchedule(task))),
+    el("td", { "data-label": "状态", class: "nowrap" }, statusBadge(task)),
+    el("td", { "data-label": "上次运行", class: "nowrap" }, task.invalid ? "—" : timeCell(task.last_run)),
+    el("td", { "data-label": "下次运行", class: "nowrap" }, task.invalid ? "—" : (task.running ? timeCell(task.next_run) : el("span", { class: "sub" }, "已暂停"))),
+    el("td", { "data-label": "最近结果", class: "result" }, resultCell(task)),
+    el("td", { "data-label": "最新数据" }, dataCell(task)),
+    el("td", {}, actionsCell(task)))));
+}
+
+function renderLogs(text) {
+  const pre = document.getElementById("logs");
+  const atBottom = pre.scrollHeight - pre.scrollTop - pre.clientHeight < 20;
+  pre.replaceChildren(...text.split("\n").filter(Boolean).map(line => {
+    const level = (line.match(/\]\[(DEBUG|INFO|WARNING|ERROR|CRITICAL)\]/) || [])[1] || "";
+    return el("div", { class: level === "CRITICAL" ? "ERROR" : level }, line);
+  }));
+  if (atBottom) pre.scrollTop = pre.scrollHeight;
+}
+
+// ---------- data flow ----------
+
+async function refresh() {
+  clearTimeout(refreshTimer);
+  const state = document.getElementById("refresh-state");
+  try {
+    const [tasks, logs] = await Promise.all([api("GET", "/api/tasks"), api("GET", "/api/logs")]);
+    renderStats(tasks);
+    renderTasks(tasks);
+    renderLogs(logs.logs);
+    lastRefresh = Date.now();
+    state.className = "";
+    state.textContent = "已更新 " + formatAbsolute(lastRefresh / 1000).slice(11);
+  } catch (e) {
+    state.className = "error";
+    state.textContent = "刷新失败：" + e.message;
+  }
+  if (!document.hidden) refreshTimer = setTimeout(refresh, REFRESH_MS);
+}
+
+async function runAction(method, path, successMessage) {
+  try {
+    await api(method, path);
+    toast(successMessage);
+  } catch (e) {
+    toast(e.message, true);
+  }
+  await refresh();
+}
+
+document.getElementById("reload-all").addEventListener("click", async (event) => {
+  if (!confirm("重载全部插件模块和任务文件？\n会先等待执行中的任务结束；任务的启动/暂停状态会恢复为任务文件中的设置。")) return;
+  const button = event.currentTarget;
+  button.disabled = true;
+  button.textContent = "重载中…";
+  try {
+    await runAction("POST", "/api/reload", "重载完成");
+  } finally {
+    button.disabled = false;
+    button.textContent = "重载全部";
+  }
+});
+
+document.addEventListener("visibilitychange", () => { if (!document.hidden) refresh(); });
+
+// ---------- editor ----------
+
+const dialog = document.getElementById("edit-dialog");
+const editor = document.getElementById("editor");
+const editorError = document.getElementById("editor-error");
+
+// filled in when adding a task; see README for all fields
+const NEW_TASK_TEMPLATE = {
+  name: "new_task",
+  type: "static",
+  cron: "*/10 * * * *",
+  startup_data: [""],
+  source: { type: "no_auth", url: "https://example.com/", method: "GET", payload: "" },
+  data: [{ type: "xpath", xpath: "//title/text()", index: 0 }],
+  condition: [{ conn: "and", var: "$0", op: "!=", target: "#0" }],
+  push: { type: "telegram", bot_token: "", to: "", text: "{0}" },
+};
+
+// name: task being edited, null when adding a new task
+function showEditor(name, title, hint, config) {
+  editingName = name;
+  document.getElementById("edit-title").textContent = title;
+  document.getElementById("edit-hint").textContent = hint;
+  editor.value = JSON.stringify(config, null, 4);
+  editorError.textContent = "";
+  dialog.showModal();
+  editor.focus();
+}
+
+async function openEditor(name) {
+  try {
+    const config = await api("GET", "/api/tasks/" + encodeURIComponent(name) + "/config");
+    showEditor(name, "编辑任务：" + name, "保存后写入任务文件并立即生效（Ctrl+S）", config);
+  } catch (e) {
+    toast(e.message, true);
+  }
+}
+
+document.getElementById("add-task").addEventListener("click", () => {
+  showEditor(null, "新增任务", "保存后追加到任务文件并立即生效，未设置 running: false 时会马上运行一次（Ctrl+S）", NEW_TASK_TEMPLATE);
+});
+
+function parseEditor() {
+  try {
+    return JSON.parse(editor.value);
+  } catch (e) {
+    editorError.textContent = "JSON 格式错误：" + e.message;
+    return undefined;
+  }
+}
+
+document.getElementById("edit-format").addEventListener("click", () => {
+  const config = parseEditor();
+  if (config === undefined) return;
+  editor.value = JSON.stringify(config, null, 4);
+  editorError.textContent = "";
+});
+
+document.getElementById("edit-cancel").addEventListener("click", () => dialog.close());
+
+async function saveEditor() {
+  const config = parseEditor();
+  if (config === undefined) return;
+  const button = document.getElementById("edit-save");
+  button.disabled = true;
+  editorError.textContent = "";
+  try {
+    if (editingName === null) {
+      await api("POST", "/api/tasks", config);
+      toast("已新增：" + config.name);
+    } else {
+      await api("PUT", "/api/tasks/" + encodeURIComponent(editingName) + "/config", config);
+      toast("已保存：" + (config.name || editingName));
+    }
+    dialog.close();
+    await refresh();
+  } catch (e) {
+    editorError.textContent = "保存失败：" + e.message;
+  } finally {
+    button.disabled = false;
+  }
+}
+document.getElementById("edit-save").addEventListener("click", saveEditor);
+
+editor.addEventListener("keydown", (event) => {
+  if ((event.ctrlKey || event.metaKey) && event.key === "s") {
+    event.preventDefault();
+    saveEditor();
+  } else if (event.key === "Tab") {
+    event.preventDefault();
+    editor.setRangeText("    ", editor.selectionStart, editor.selectionEnd, "end");
+  }
+});
+
+refresh();
+</script>
+</body>
+</html>
