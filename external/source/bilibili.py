@@ -1,4 +1,3 @@
-import utils.log as log
 from functools import reduce
 from hashlib import md5
 import urllib.parse
@@ -84,13 +83,13 @@ def get_source(source):
     )
     query = urllib.parse.urlencode(signed_params)
     
-    cookie_req = session.get("https://api.bilibili.com/x/frontend/finger/spi", headers=headers)
+    cookie_req = session.get("https://api.bilibili.com/x/frontend/finger/spi", headers=headers, timeout=10)
     cookies = {
         "buvid3": cookie_req.json()["data"]["b_3"],
     }
     
     url = BILI_VIDEO_API + "?" + query
-    resp = session.get(url, headers=headers, cookies=cookies)
+    resp = session.get(url, headers=headers, cookies=cookies, timeout=10)
     json_content = resp.json()
     # print(json_content)
     return json.dumps(json_content["data"]["list"]["vlist"][0])

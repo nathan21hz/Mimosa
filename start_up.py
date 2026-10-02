@@ -4,7 +4,7 @@ import pip
 import config as cfg
 cfg._init()
 import utils.log as log
-log._init()
+log.setup()
 
 cfg.load_config()
 

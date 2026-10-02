@@ -1,33 +1,26 @@
 [
     {
-        "name":"test1",
-        "type":"dynamic",
-        "config_source":{
-
-        },
-        "update_interval":500
-    },
-    {
         "name":"test",
-        "interval":5,
-        "startup_data":[0,0],
+        "type":"static",
+        "cron":"*/5 * * * *",
+        "startup_data":["", 0],
 
         "source":{
             "type":"no_auth",
-            "url":"",
+            "url":"https://example.com/api/status",
             "method":"GET",
             "payload":""
         },
-        
+
         "data":[
             {
                 "type":"regexp",
-                "exp":"",
+                "exp":"\"title\":\\s*\"(.*?)\"",
                 "index":0
             },
             {
                 "type":"json",
-                "route":[]
+                "route":["data", "count"]
             }
         ],
 
@@ -35,22 +28,22 @@
             {
                 "conn":"and",
                 "var":"$0",
-                "op":"=",
-                "target":100
+                "op":"!=",
+                "target":"#0"
             },
             {
                 "conn":"or",
-                "var":"#0",
-                "op":"=",
+                "var":"$1",
+                "op":">=",
                 "target":100
             }
         ],
 
         "push":[{
-            "type":"",
-            "url":"",
-            "method":"", 
-            "payload":""
+            "type":"telegram",
+            "bot_token":"",
+            "to":"",
+            "text":"{0}\ncount: {1}"
         }]
 
     }

@@ -8,9 +8,9 @@ def do_push(push_config, data):
     picurl = push_config.get("picurl", "")
 
     if jumpurl or picurl:
-        if jumpurl == "":
+        if not jumpurl:
             jumpurl = " "
-        if title == "":
+        if not title:
             title = " "
         push_payload = {
             "msgtype": "news",

@@ -1,5 +1,7 @@
 import requests
-import utils.log as log
+import logging
+
+logger = logging.getLogger(__name__)
 
 SOURCE_NAME = "no_auth"
 
@@ -15,18 +17,20 @@ def get_source(source):
         url = source["url"]
 
     cookies = source.get("cookies",{})
+    proxies = source.get("proxies",{})
     custom_headers = source.get("headers",{})
+    timeout = source.get("timeout", 10)
     headers.update(custom_headers)
     if method == "GET":
-        r = requests.get(url, headers=headers, cookies=cookies)
+        r = requests.get(url, headers=headers, timeout=timeout, cookies=cookies, proxies=proxies)
         if source.get("encoding"):
             r.encoding = source["encoding"]
         return r.text
     elif method == "POST":
-        r = requests.post(url, headers=headers, data=source["payload"], timeout=10, cookies=cookies)
+        r = requests.post(url, headers=headers, data=source["payload"], timeout=timeout, cookies=cookies, proxies=proxies)
         if source.get("encoding"):
             r.encoding = source["encoding"]
         return r.text
     else:
-        log.error(["Source","no_auth"], "Method error.")
+        logger.error("Method error.")
         return ""

@@ -1,6 +1,8 @@
 import requests
 import re
-import utils.log as log
+import logging
+
+logger = logging.getLogger(__name__)
 
 SOURCE_NAME = "ups"
 
@@ -11,11 +13,11 @@ headers = {
 def get_source(source):
     a = requests.get("https://easyparcel.com/my/en/track/details/?courier=UPS&awb="+source["tracking_id"], timeout=10)
     token = re.findall(r'(?<=token : ")[0-9a-z]*', a.text)[0]
-    log.debug(["Source","ups"], "Token: "+token)
+    logger.debug("Token: "+token)
 
     tracking_id = source["tracking_id"]
     payload = {'key': tracking_id, 'courier': '55', 'token': token}
     a = requests.post("https://easyparcel.com/my/en/?ac=doTrackStatus", data=payload, timeout=10)
-    print(a.status_code)
+    logger.debug("Status: %s", a.status_code)
     return a.text
 

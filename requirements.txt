@@ -1,3 +1,5 @@
-flask
 requests
 lxml
+pycryptodome
+requests
+cronsim

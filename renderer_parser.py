@@ -1,16 +1,18 @@
 import os
 import importlib
+import logging
 
 import config as cfg
-import utils.log as log
+
+logger = logging.getLogger(__name__)
 
 class RendererParserLoader():
     def __init__(self) -> None:
-        self.renderer = None
+        self.renderer = {}
         self.reload_renderer()
 
     def reload_renderer(self):
-        renderer = {}
+        renderer = self.renderer
         renderer_files = os.listdir("./renderer")
         for r_f in renderer_files:
             renderer_name = r_f.split(".")[0]
@@ -28,17 +30,15 @@ class RendererParserLoader():
                     importlib.reload(renderer[e_renderer_name])
                 else:
                     renderer[e_renderer_name] = importlib.import_module(external_module_folder.replace("/",".")+".renderer."+e_renderer_name)
-    
-        self.renderer = renderer
 
     def do_render(self, renderer_config, data, hist_data):
         if renderer_config["type"] in self.renderer:
             try:
                 rendered_data = self.renderer[renderer_config["type"]].do_render(renderer_config, data, hist_data)
-                log.info(["Renderer", renderer_config["type"]], rendered_data)
+                logger.info("%s: %s", renderer_config["type"], rendered_data)
                 return(rendered_data)
             except Exception as e:
-                log.error(["Renderer", renderer_config["type"]], str(e))
+                logger.error("%s: %s", renderer_config["type"], e)
         else:
-            log.error(["Renderer"], "No such renderer type: {}.".format(renderer_config["type"]))
+            logger.error("No such renderer type: {}.".format(renderer_config["type"]))
         return [0]
