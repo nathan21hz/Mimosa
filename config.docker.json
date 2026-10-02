@@ -1,0 +1,10 @@
+{
+    "LOG_LEVEL": 0,
+    "TASK_FILE": "external/tasks.json",
+    "EXTERNAL_MODULE_FOLDER":"external",
+    "HISTORY_FILE":"external/history.pkl",
+    "DASHBOARD": true,
+    "DASHBOARD_HOST": "0.0.0.0",
+    "DASHBOARD_PORT": 8080,
+    "DASHBOARD_TOKEN": ""
+}

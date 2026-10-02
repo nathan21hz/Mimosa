@@ -1,44 +1,55 @@
-import time
+import sys
+import logging
 from collections import deque
-import config as cfg
 
-def _init():
-    global _global_log_record
-    _global_log_record = deque([],100)
+LOG_FORMAT = "[%(asctime)s][%(levelname)s][%(name)s] %(message)s"
+DATE_FORMAT = "%H:%M:%S"
+RECENT_LOG_SIZE = 100
+
+# LOG_LEVEL config value -> logging level, anything larger means ERROR
+LEVELS = {0: logging.DEBUG, 1: logging.DEBUG, 2: logging.INFO, 3: logging.WARNING}
+
+# third-party loggers that are too verbose (debug output, a line per web request)
+QUIET_LOGGERS = ["urllib3", "charset_normalizer", "chardet", "werkzeug"]
+
+
+class RecentLogHandler(logging.Handler):
+    """ Keeps the latest formatted log lines in memory """
+    def __init__(self, capacity):
+        super().__init__()
+        self.lines = deque(maxlen=capacity)
+
+    def emit(self, record):
+        # logging.Handler.handle() holds self.lock while calling emit
+        self.lines.append(self.format(record))
+
+    def get_lines(self):
+        with self.lock:
+            return list(self.lines)
+
+
+_recent_handler = RecentLogHandler(RECENT_LOG_SIZE)
+
+
+def setup(level=0):
+    """ Configure the root logger. Can be called again to change the level.
+    level: LOG_LEVEL number (0~4) or a logging level name such as "INFO" """
+    root = logging.getLogger()
+    if _recent_handler not in root.handlers:
+        formatter = logging.Formatter(LOG_FORMAT, DATE_FORMAT)
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setFormatter(formatter)
+        _recent_handler.setFormatter(formatter)
+        root.addHandler(console_handler)
+        root.addHandler(_recent_handler)
+        for name in QUIET_LOGGERS:
+            logging.getLogger(name).setLevel(logging.WARNING)
+    if isinstance(level, str):
+        root.setLevel(level.upper())
+    else:
+        root.setLevel(LEVELS.get(level, logging.ERROR))
+
 
 def get_log_record():
-    return "\n".join(_global_log_record)
-
-def add_log_record(log_record_str):
-    _global_log_record.append(log_record_str)
-
-def route2str(route):
-    template = "[{}]"*len(route)
-    return template.format(*route)
-
-def debug(route, info):
-    if cfg.get_value("LOG_LEVEL",0) < 2:
-        time_str = time.strftime("[%H:%M:%S]", time.localtime())
-        log_str = time_str + "[DEBUG]" + route2str(route) + " " + str(info)
-        add_log_record(log_str)
-        print(log_str)
-
-def info(route, info):
-    if cfg.get_value("LOG_LEVEL",0) < 3:
-        time_str = time.strftime("[%H:%M:%S]", time.localtime())
-        log_str = time_str + "[INFO]" + route2str(route) + " " + str(info)
-        add_log_record(log_str)
-        print(log_str)
-
-def warning(route, info):
-    if cfg.get_value("LOG_LEVEL",0) < 4:
-        time_str = time.strftime("[%H:%M:%S]", time.localtime())
-        log_str = time_str + "[WARNING]" + route2str(route) + " " + str(info)
-        add_log_record(log_str)
-        print(log_str)
-
-def error(route, info):
-    time_str = time.strftime("[%H:%M:%S]", time.localtime())
-    log_str = time_str + "[ERROR]" + route2str(route) + " " + str(info)
-    add_log_record(log_str)
-    print(log_str)
+    """ The latest log lines joined by newlines """
+    return "\n".join(_recent_handler.get_lines())

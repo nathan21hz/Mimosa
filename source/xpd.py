@@ -1,5 +1,4 @@
 import requests
-import utils.log as log
 
 SOURCE_NAME = "xpd"
 
@@ -16,7 +15,7 @@ def get_source(source):
         "content-type": "application/x-www-form-urlencoded",
         }
 
-    r = s.request("POST", url, data=payload, headers=headers, params=querystring)
+    r = s.request("POST", url, data=payload, headers=headers, params=querystring, timeout=10)
 
     querystring = {"action":"repeat"}
     payload = "index=0&isRepeat=no&language=zh&billid=" + tracking_id
@@ -24,6 +23,6 @@ def get_source(source):
         "content-type": "application/x-www-form-urlencoded",
         }
 
-    r = s.request("POST", url, data=payload, headers=headers, params=querystring)
+    r = s.request("POST", url, data=payload, headers=headers, params=querystring, timeout=10)
 
     return r.text.split("\n",1)[1]

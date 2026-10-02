@@ -3,7 +3,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-SOURCE_NAME = "no_auth"
+SOURCE_NAME = "proxy_no_auth"
 
 headers = {
     "User-Agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.93 Safari/537.36"
