@@ -46,5 +46,66 @@
             "text":"{0}\ncount: {1}"
         }]
 
+    },
+    {
+        "name": "news_details",
+        "type": "static",
+        "cron": "*/30 * * * *",
+        "startup_data": [
+            []
+        ],
+        "stages": [
+            {
+                "source": {
+                    "type": "no_auth",
+                    "url": "https://example.com/news",
+                    "method": "GET",
+                    "payload": ""
+                },
+                "data": [
+                    {
+                        "type": "xpath",
+                        "xpath": "//ul[@class='list']//a/@href",
+                        "index": "*"
+                    }
+                ]
+            },
+            {
+                "foreach": "$0",
+                "match": "/news/\\d+",
+                "limit": 10,
+                "delay": 1,
+                "skip_failed": true,
+                "source": {
+                    "type": "no_auth",
+                    "url": "{item}",
+                    "method": "GET",
+                    "payload": ""
+                },
+                "data": [
+                    {
+                        "type": "xpath",
+                        "xpath": "//h1/text()",
+                        "index": 0
+                    }
+                ]
+            }
+        ],
+        "condition": [
+            {
+                "conn": "and",
+                "var": "$0",
+                "op": "!=",
+                "target": "#0"
+            }
+        ],
+        "push": [
+            {
+                "type": "telegram",
+                "bot_token": "",
+                "to": "",
+                "text": "{0|join:\"\\n\"}"
+            }
+        ]
     }
 ]

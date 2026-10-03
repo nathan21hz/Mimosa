@@ -1,4 +1,5 @@
 import os
+import re
 import copy
 import json
 import time
@@ -9,13 +10,16 @@ from concurrent.futures import ThreadPoolExecutor, wait
 
 from cronsim import CronSim, CronSimError
 
-import config as cfg
-from pipeline import Pipeline
+from mimosa import config as cfg
+from mimosa.pipeline import Pipeline
+from mimosa.utils.template import compile_template, TemplateError
 
 logger = logging.getLogger(__name__)
 
 # plus one of "cron" and "interval"
-TASK_FIELDS = ["name", "startup_data", "source", "data", "condition", "push"]
+TASK_FIELDS = ["name", "startup_data", "condition", "push"]
+# plus "stages", or "source" and "data" for a single stage
+STAGE_FIELDS = {"source", "data", "foreach", "match", "limit", "delay", "skip_failed"}
 
 # crontab shortcuts, which cronsim does not support
 CRON_ALIASES = {
@@ -54,12 +58,70 @@ def validate_task(task):
         return "Missing fields: {}.".format(", ".join(missing))
     if not isinstance(task["name"], str) or not task["name"]:
         return "Task name must be a non-empty string."
+    if "stages" in task:
+        error = validate_stages(task["stages"])
+        if error:
+            return error
+    elif "source" not in task or "data" not in task:
+        return "Missing fields: {}.".format(", ".join(f for f in ["source", "data"] if f not in task))
     if ("cron" in task) == ("interval" in task):
         return "Task needs exactly one of cron and interval."
     try:
         next_run_time(task, time.time())
     except (CronSimError, TypeError, AttributeError) as e:
         return "Invalid schedule: {}.".format(e)
+    return None
+
+
+def validate_stages(stages):
+    """ Return why the stages are invalid, or None """
+    if not isinstance(stages, list) or not stages:
+        return "stages must be a non-empty list."
+    for index, stage in enumerate(stages):
+        where = "stages[{}]".format(index)
+        if not isinstance(stage, dict):
+            return "{} must be an object.".format(where)
+        unknown = sorted(set(stage) - STAGE_FIELDS)
+        if unknown:
+            return "{}: unknown field(s) {}.".format(where, ", ".join(unknown))
+        if not isinstance(stage.get("source"), dict):
+            return "{}.source must be an object.".format(where)
+        if not isinstance(stage.get("data"), list):
+            return "{}.data must be a list.".format(where)
+        foreach = "foreach" in stage
+        if foreach:
+            if index == 0:
+                return "{}: the first stage can't use foreach.".format(where)
+            if not isinstance(stage["foreach"], str) or not re.fullmatch(r"\$\d+", stage["foreach"]):
+                return "{}.foreach must be like \"$0\".".format(where)
+        else:
+            options = [key for key in ("match", "limit", "delay", "skip_failed") if key in stage]
+            if options:
+                return "{}: {} only work(s) with foreach.".format(where, ", ".join(options))
+        if "match" in stage:
+            try:
+                re.compile(stage["match"])
+            except (re.error, TypeError) as e:
+                return "{}.match is not a valid regular expression: {}.".format(where, e)
+        if "limit" in stage and (type(stage["limit"]) is not int or stage["limit"] < 1):
+            return "{}.limit must be a positive integer.".format(where)
+        if "delay" in stage and (type(stage["delay"]) not in (int, float) or stage["delay"] < 0):
+            return "{}.delay must be a number of seconds >= 0.".format(where)
+        if "skip_failed" in stage and not isinstance(stage["skip_failed"], bool):
+            return "{}.skip_failed must be true or false.".format(where)
+        if index > 0:
+            # url templates are filled from the second stage on; {item} only exists in foreach stages
+            for key, value in stage["source"].items():
+                if not (key.startswith("url") and isinstance(value, str)):
+                    continue
+                try:
+                    fields = [part for part in compile_template(value) if not isinstance(part, str)]
+                except TemplateError as e:
+                    return "{}.source.{}: {}".format(where, key, e)
+                for field in fields:
+                    if isinstance(field.root, str) and not (field.root == "item" and foreach):
+                        return "{}.source.{}: unknown variable '{}'{}.".format(
+                            where, key, field.root, "" if foreach else " (only foreach stages have {item})")
     return None
 
 

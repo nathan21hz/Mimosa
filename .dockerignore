@@ -4,9 +4,6 @@
 .VSCodeCounter
 **/__pycache__
 **/*.pyc
-.python-version
-pyproject.toml
-src
 
 # mounted at runtime
 external

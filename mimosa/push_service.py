@@ -2,7 +2,8 @@ import os
 import importlib
 import logging
 
-import config as cfg
+from mimosa import config as cfg
+from mimosa.utils.plugins import builtin_folder, module_names
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +13,7 @@ class PushService():
         self.reload_push_sevice()
 
     def reload_push_sevice(self):
-        push_service_files = os.listdir("./push")
+        push_service_files = module_names(builtin_folder("push"))
         for ps_f in push_service_files:
             push_service_name = ps_f.split(".")[0]
             if push_service_name in self.push_services:
@@ -20,11 +21,11 @@ class PushService():
                 importlib.reload(self.push_services[push_service_name])
             else:
                 logger.info("Load module " + push_service_name)
-                self.push_services[push_service_name] = importlib.import_module("push."+push_service_name)
+                self.push_services[push_service_name] = importlib.import_module("plugins.push."+push_service_name)
 
         external_module_folder = cfg.get_value("EXTERNAL_MODULE_FOLDER", "")
         if external_module_folder != "":
-            external_push_service_files = os.listdir(external_module_folder+"/push")
+            external_push_service_files = module_names(external_module_folder+"/push")
             for e_ps_f in external_push_service_files:
                 e_push_service_name = e_ps_f.split(".")[0]
                 if e_push_service_name in self.push_services:

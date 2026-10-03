@@ -6,10 +6,10 @@ import logging
 import threading
 from concurrent.futures import Future
 
-import config as cfg
-import utils.log as log
-from worker import Worker
-from dashboard import Dashboard
+from mimosa import config as cfg
+from mimosa.utils import log
+from mimosa.worker import Worker
+from mimosa.dashboard import Dashboard
 
 logger = logging.getLogger("main")
 

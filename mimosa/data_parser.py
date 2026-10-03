@@ -3,7 +3,8 @@ import importlib
 import copy
 import logging
 
-import config as cfg
+from mimosa import config as cfg
+from mimosa.utils.plugins import builtin_folder, module_names
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +16,7 @@ class DataParserLoader():
         self.reload_data_parser()
         
     def reload_data_parser(self):
-        data_parser_files = os.listdir("./data")
+        data_parser_files = module_names(builtin_folder("data"))
         for dp_f in data_parser_files:
             data_parser_name = dp_f.split(".")[0]
             if data_parser_name in self.data_parsers:
@@ -23,11 +24,11 @@ class DataParserLoader():
                 importlib.reload(self.data_parsers[data_parser_name])
             else:
                 logger.info("Load module " + data_parser_name)
-                self.data_parsers[data_parser_name] = importlib.import_module("data."+data_parser_name)
+                self.data_parsers[data_parser_name] = importlib.import_module("plugins.data."+data_parser_name)
 
         external_module_folder = cfg.get_value("EXTERNAL_MODULE_FOLDER", "")
         if external_module_folder != "":
-            external_data_parser_files = os.listdir(external_module_folder+"/data")
+            external_data_parser_files = module_names(external_module_folder+"/data")
             for e_dp_f in external_data_parser_files:
                 e_data_parser_name = e_dp_f.split(".")[0]
                 if e_data_parser_name in self.data_parsers:

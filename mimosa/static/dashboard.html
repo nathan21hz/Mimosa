@@ -182,6 +182,7 @@
   .dr-line .bad { color: var(--red); }
   .dr-line .good { color: var(--green); }
   .dr-warn { color: var(--amber); }
+  .dr-item { margin: 6px 0 0 4px; padding-left: 8px; border-left: 2px solid var(--border); }
   .dr-pre { white-space: pre-wrap; word-break: break-all; background: var(--code-bg); padding: 6px 8px; border-radius: 4px; max-height: 220px; overflow: auto; margin: 4px 0 0; }
   .bookmarks { display: flex; flex-direction: column; gap: 10px; min-width: 0; max-height: calc(min(60vh, 560px) + 28px); }
   .bm-head { font-weight: 600; }
@@ -199,6 +200,18 @@
   .bm-save input { flex: 1; }
   #bm-status { min-height: 18px; font-size: 12px; color: var(--muted); }
   #bm-status.error { color: var(--red); }
+  .bm-target { display: flex; gap: 6px; align-items: center; }
+  .bm-target[hidden] { display: none; }
+  .bm-target select {
+    flex: 1;
+    font: inherit;
+    min-width: 0;
+    padding: 4px 6px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--panel);
+    color: var(--text);
+  }
   .bm-list { overflow: auto; display: flex; flex-direction: column; gap: 8px; }
   .bm-item { border: 1px solid var(--border); border-radius: 6px; padding: 8px; }
   .bm-item-head { display: flex; align-items: center; gap: 6px; }
@@ -287,6 +300,10 @@
           <button id="bm-add">收藏</button>
         </div>
         <div id="bm-status"></div>
+      </div>
+      <div class="bm-target" id="bm-target-row" hidden>
+        <span class="sub">插入到</span>
+        <select id="bm-target" title="source / data / stage 类书签插入到哪个阶段"></select>
       </div>
       <div id="bm-list" class="bm-list"></div>
     </aside>
@@ -664,10 +681,13 @@ document.getElementById("edit-save").addEventListener("click", saveEditor);
 
 // ---------- bookmarks ----------
 
-const KIND_ORDER = ["source", "data", "renderer", "condition", "push"];
-const LIST_KINDS = ["data", "condition", "push"];   // can be appended to
+const KIND_ORDER = ["stage", "source", "data", "renderer", "condition", "push"];
+const LIST_KINDS = ["stage", "data", "condition", "push"];   // can be appended to
+const STAGE_SCOPED = ["stage", "source", "data"];   // go into the target stage of a multi-stage task
 const bmModule = document.getElementById("bm-module");
 const bmName = document.getElementById("bm-name");
+const bmTarget = document.getElementById("bm-target");
+const bmTargetRow = document.getElementById("bm-target-row");
 let moduleOptions = [];   // modules of the config in the editor: {kind, path, label}
 let bookmarks = [];
 
@@ -691,9 +711,24 @@ function isObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+function stageLabel(stage) {
+  return (stage.foreach ? " · foreach " + stage.foreach : "") + typeLabel(stage.source);
+}
+
 // modules of a task config that can be bookmarked; whole lists are offered when they have more than one item
 function listModules(task) {
   const options = [];
+  if (Array.isArray(task.stages)) {
+    if (task.stages.length > 1) options.push({ kind: "stage", path: ["stages"], label: `stages（全部 ${task.stages.length} 个）` });
+    task.stages.forEach((stage, i) => {
+      if (!isObject(stage)) return;
+      options.push({ kind: "stage", path: ["stages", i], label: `stages[${i}]` + stageLabel(stage) });
+      if (isObject(stage.source)) options.push({ kind: "source", path: ["stages", i, "source"], label: `stages[${i}].source` + typeLabel(stage.source) });
+      if (!Array.isArray(stage.data)) return;
+      if (stage.data.length > 1) options.push({ kind: "data", path: ["stages", i, "data"], label: `stages[${i}].data（全部 ${stage.data.length} 项）` });
+      stage.data.forEach((item, j) => options.push({ kind: "data", path: ["stages", i, "data", j], label: `stages[${i}].data[${j}]` + typeLabel(item) }));
+    });
+  }
   if (isObject(task.source)) options.push({ kind: "source", path: ["source"], label: "source" + typeLabel(task.source) });
   for (const [kind, unit, label] of [["data", "项", typeLabel], ["condition", "条", conditionLabel]]) {
     if (!Array.isArray(task[kind])) continue;
@@ -724,6 +759,22 @@ function refreshModules() {
   bmModule.disabled = !!placeholder;
   document.getElementById("bm-add").disabled = !!placeholder;
   updateNamePlaceholder();
+  refreshTarget(task);
+}
+
+// the stage choices for stage / source / data bookmarks, shown only for multi-stage configs
+function refreshTarget(task) {
+  const stages = isObject(task) && Array.isArray(task.stages) ? task.stages : null;
+  bmTargetRow.hidden = !stages || !stages.length;
+  if (bmTargetRow.hidden) return;
+  const previous = bmTarget.value;
+  bmTarget.replaceChildren(...stages.map((stage, i) => el("option", { value: String(i) }, `阶段 ${i + 1}` + (isObject(stage) ? stageLabel(stage) : ""))));
+  if (previous !== "" && Number(previous) < stages.length) bmTarget.value = previous;
+}
+
+function targetStage(task) {
+  const index = bmTargetRow.hidden ? 0 : Number(bmTarget.value) || 0;
+  return Math.min(Math.max(index, 0), task.stages.length - 1);
 }
 
 function selectedModule() {
@@ -780,10 +831,13 @@ function renderBookmarks() {
   const sorted = [...bookmarks].sort((a, b) => KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind) || a.created - b.created);
   list.replaceChildren(...sorted.map(bookmark => {
     const buttons = [];
+    const where = STAGE_SCOPED.includes(bookmark.kind) ? "（多阶段任务按「插入到」所选阶段）" : "";
     if (LIST_KINDS.includes(bookmark.kind)) {
-      buttons.push(el("button", { title: `追加到 ${bookmark.kind}`, onclick: () => insertBookmark(bookmark, "append") }, "追加"));
+      const target = bookmark.kind === "stage" ? "stages 末尾" : bookmark.kind;
+      buttons.push(el("button", { title: `追加到 ${target}${bookmark.kind === "stage" ? "" : where}`, onclick: () => insertBookmark(bookmark, "append") }, "追加"));
     }
-    buttons.push(el("button", { title: `替换整个 ${bookmark.kind}`, onclick: () => insertBookmark(bookmark, "replace") }, "替换"));
+    const replaced = bookmark.kind === "stage" ? (Array.isArray(bookmark.value) ? "整个 stages" : "所选阶段") : "整个 " + bookmark.kind;
+    buttons.push(el("button", { title: `替换${replaced}${bookmark.kind === "stage" ? "" : where}`, onclick: () => insertBookmark(bookmark, "replace") }, "替换"));
     buttons.push(el("button", { class: "danger", onclick: () => deleteBookmark(bookmark) }, "删除"));
     return el("div", { class: "bm-item" },
       el("div", { class: "bm-item-head" }, el("span", { class: "bm-name" }, bookmark.name), el("span", { class: "bm-kind" }, bookmark.kind)),
@@ -799,6 +853,37 @@ function setEditorText(text) {
   if (!document.execCommand("insertText", false, text)) editor.value = text;
 }
 
+// a task without "stages" turned into one: its top-level source / data become the first stage, in place
+function toStages(task) {
+  const stage = {};
+  if ("source" in task) stage.source = task.source;
+  if ("data" in task) stage.data = task.data;
+  const stages = Object.keys(stage).length ? [stage] : [];
+  const converted = {};
+  for (const [key, value] of Object.entries(task)) {
+    if (key === "source" || key === "data") {
+      if (!("stages" in converted)) converted.stages = stages;
+      continue;
+    }
+    converted[key] = value;
+  }
+  if (!("stages" in converted)) converted.stages = stages;
+  return converted;
+}
+
+// append to or replace container[kind]
+function applyBookmark(container, kind, value, mode) {
+  const current = container[kind];
+  if (mode === "append") {
+    const items = Array.isArray(value) ? value : [value];
+    if (Array.isArray(current)) container[kind] = current.concat(items);
+    else if (isObject(current)) container[kind] = [current, ...items];   // single push channel becomes a list
+    else container[kind] = items;
+  } else {
+    container[kind] = ["data", "condition"].includes(kind) && !Array.isArray(value) ? [value] : value;
+  }
+}
+
 function insertBookmark(bookmark, mode) {
   let task;
   try {
@@ -812,19 +897,36 @@ function insertBookmark(bookmark, mode) {
     return;
   }
   const value = JSON.parse(JSON.stringify(bookmark.value));
-  const current = task[bookmark.kind];
-  if (mode === "append") {
-    const items = Array.isArray(value) ? value : [value];
-    if (Array.isArray(current)) task[bookmark.kind] = current.concat(items);
-    else if (isObject(current)) task[bookmark.kind] = [current, ...items];   // single push channel becomes a list
-    else task[bookmark.kind] = items;
+  let where = "";
+  if (bookmark.kind === "stage") {
+    if (!Array.isArray(task.stages)) {
+      task = toStages(task);
+      where = "，已转为多阶段";
+    }
+    if (mode === "append") {
+      task.stages = task.stages.concat(Array.isArray(value) ? value : [value]);
+    } else if (Array.isArray(value) || !task.stages.length) {
+      task.stages = Array.isArray(value) ? value : [value];
+    } else {
+      const index = where ? 0 : targetStage(task);
+      task.stages[index] = value;
+      where = `（阶段 ${index + 1}）` + where;
+    }
+  } else if (STAGE_SCOPED.includes(bookmark.kind) && Array.isArray(task.stages)) {
+    if (!task.stages.length || !isObject(task.stages[targetStage(task)])) {
+      setBookmarkStatus("没有可插入的阶段", true);
+      return;
+    }
+    const index = targetStage(task);
+    applyBookmark(task.stages[index], bookmark.kind, value, mode);
+    where = `（阶段 ${index + 1}）`;
   } else {
-    task[bookmark.kind] = ["data", "condition"].includes(bookmark.kind) && !Array.isArray(value) ? [value] : value;
+    applyBookmark(task, bookmark.kind, value, mode);
   }
   setEditorText(JSON.stringify(task, null, 4));
   editorError.textContent = "";
   refreshModules();
-  setBookmarkStatus(`已${mode === "append" ? "追加" : "替换"}：${bookmark.name}（Ctrl+Z 可撤销）`);
+  setBookmarkStatus(`已${mode === "append" ? "追加" : "替换"}：${bookmark.name}${where}（Ctrl+Z 可撤销）`);
 }
 
 async function deleteBookmark(bookmark) {
@@ -866,64 +968,109 @@ function line(...children) {
   return el("div", { class: "dr-line mono" }, ...children);
 }
 
-function stepBody(step, report) {
-  switch (step) {
-    case "url":
-      return Object.entries(report.urls || {}).map(([key, value]) => line(key + ": " + value));
-    case "source":
-      if (!report.source) return [];
-      return [
-        line(`长度 ${report.source.length} 字符`),
-        el("details", {},
-          el("summary", { class: "sub" }, report.source.length > report.source.preview.length ? `原始数据（前 ${report.source.preview.length} 字符）` : "原始数据"),
-          el("pre", { class: "dr-pre mono" }, report.source.preview)),
-      ];
-    case "data":
-      return (report.data || []).map((item, i) => item.error
-        ? line(`$${i} · ${item.type} → `, el("span", { class: "bad" }, item.error))
-        : line(`$${i} · ${item.type} → ${brief(item.value)}`));
-    case "renderer": {
-      if (!report.renderer) return [];
-      const lines = [line("输出 → " + brief(report.renderer.output))];
-      if (report.renderer.error) lines.push(el("div", { class: "dr-line dr-warn" }, "渲染出错，输出为 [0]：" + report.renderer.error));
-      return lines;
-    }
-    case "condition": {
-      if (!report.condition) return [];
-      const lines = report.condition.items.map((item, i) => {
-        const operand = (expr, value) => typeof expr === "string" && /^[$#]\d+$|^\*timestamp$/.test(expr) ? `${expr}(${brief(value, 60)})` : brief(value, 60);
-        const parts = [`${i + 1}. ${item.conn} · ${operand(item.var, item.var_value)} ${item.op} ${operand(item.target, item.target_value)} → `];
-        if (item.skipped) parts.push(el("span", { class: "bad" }, "已跳过：" + item.skipped));
-        else {
-          parts.push(el("span", { class: item.result ? "good" : "bad" }, item.result ? "真" : "假"));
-          if (item.error) parts.push(el("span", { class: "bad" }, "（出错：" + item.error + "）"));
-        }
-        return line(...parts);
-      });
-      if (!lines.length) lines.push(line("没有条件，每次都推送"));
-      return lines;
-    }
-  }
-  return [];
+function urlLines(stage) {
+  return Object.entries(stage.urls || {}).map(([key, value]) => line(key + ": " + value));
 }
 
-function renderDryRun(report, hasRenderer) {
-  const steps = ["url", "source", "data", ...(hasRenderer ? ["renderer"] : []), "condition"];
-  const failedAt = report.error ? steps.indexOf(report.step) : -1;
+function sourceLines(stage) {
+  if (!stage.source) return [];
+  const { length, preview } = stage.source;
+  return [
+    line(`长度 ${length} 字符`),
+    el("details", {},
+      el("summary", { class: "sub" }, length > preview.length ? `原始数据（前 ${preview.length} 字符）` : "原始数据"),
+      el("pre", { class: "dr-pre mono" }, preview)),
+  ];
+}
+
+function dataLines(items) {
+  return (items || []).map((item, i) => item.error
+    ? line(`$${i} · ${item.type} → `, el("span", { class: "bad" }, item.error))
+    : line(`$${i} · ${item.type} → ${brief(item.value)}`));
+}
+
+function foreachLines(stage) {
+  const summary = stage.foreach;
+  if (!summary) return [];
+  const lines = [line(`共 ${summary.total} 个 · 匹配 ${summary.matched} · 访问 ${summary.visited} · 失败 ${summary.failed}`)];
+  lines.push(...dataLines(stage.data));
+  if (summary.items.length) {
+    lines.push(el("details", {},
+      el("summary", { class: "sub" }, `元素明细（${summary.items.length} 个）`),
+      ...summary.items.map(item => el("div", { class: "dr-item" },
+        line("item: " + brief(item.item, 100)),
+        ...urlLines(item),
+        ...(item.error ? [el("div", { class: "dr-line error-text" }, item.error)] : dataLines(item.data))))));
+  }
+  return lines;
+}
+
+function stageLines(stage) {
+  return stage.foreach ? foreachLines(stage) : [...urlLines(stage), ...sourceLines(stage), ...dataLines(stage.data)];
+}
+
+function rendererLines(report) {
+  if (!report.renderer) return [];
+  const lines = [line("输出 → " + brief(report.renderer.output))];
+  if (report.renderer.error) lines.push(el("div", { class: "dr-line dr-warn" }, "渲染出错，输出为 [0]：" + report.renderer.error));
+  return lines;
+}
+
+function conditionLines(report) {
+  if (!report.condition) return [];
+  const lines = report.condition.items.map((item, i) => {
+    const operand = (expr, value) => typeof expr === "string" && /^[$#]\d+$|^\*timestamp$/.test(expr) ? `${expr}(${brief(value, 60)})` : brief(value, 60);
+    const parts = [`${i + 1}. ${item.conn} · ${operand(item.var, item.var_value)} ${item.op} ${operand(item.target, item.target_value)} → `];
+    if (item.skipped) parts.push(el("span", { class: "bad" }, "已跳过：" + item.skipped));
+    else {
+      parts.push(el("span", { class: item.result ? "good" : "bad" }, item.result ? "真" : "假"));
+      if (item.error) parts.push(el("span", { class: "bad" }, "（出错：" + item.error + "）"));
+    }
+    return line(...parts);
+  });
+  if (!lines.length) lines.push(line("没有条件，每次都推送"));
+  return lines;
+}
+
+// sections in run order; a task without "stages" shows its single stage as url / source / data
+function renderDryRun(report, config) {
+  const stageReports = report.stages || [];
+  const failedStage = report.error && report.step === "stages" ? stageReports.length - 1 : -1;
+  const sections = [];
+  let failedTitle = null;
+  const add = (title, lines, failed) => {
+    if (failedTitle !== null) {
+      sections.push(el("div", { class: "dr-step skip" }, el("div", { class: "dr-head" }, title + "：未执行")));
+      return;
+    }
+    const children = [el("div", { class: "dr-head" }, title), ...lines];
+    if (failed) {
+      children.push(el("div", { class: "dr-line error-text" }, report.error));
+      failedTitle = title;
+    }
+    sections.push(el("div", { class: "dr-step" + (failed ? " fail" : "") }, ...children));
+  };
+  if (Array.isArray(config.stages)) {
+    config.stages.forEach((stage, i) => {
+      const title = `阶段 ${i + 1}` + (isObject(stage) && stage.foreach ? ` · foreach ${stage.foreach}` : "");
+      add(title, stageLines(stageReports[i] || {}), i === failedStage);
+    });
+  } else {
+    const stage = stageReports[0] || {};
+    add(DRY_RUN_STEPS.url, urlLines(stage), failedStage === 0 && stage.step === "url");
+    add(DRY_RUN_STEPS.source, sourceLines(stage), failedStage === 0 && stage.step === "source");
+    add(DRY_RUN_STEPS.data, dataLines(stage.data), failedStage === 0 && stage.step === "data");
+  }
+  if ("renderer" in config) add(DRY_RUN_STEPS.renderer, rendererLines(report), report.error && report.step === "renderer");
+  add(DRY_RUN_STEPS.condition, conditionLines(report), report.error && report.step === "condition");
+
   let summary;
-  if (report.error) summary = el("span", {}, `✗ 在「${DRY_RUN_STEPS[report.step] || report.step}」失败，正式运行时本轮会被跳过`);
-  else if (report.condition.result) summary = el("span", {}, "✓ 满足条件，正式运行时会推送");
-  else summary = el("span", {}, "– 不满足条件，正式运行时不会推送");
+  if (report.error) summary = `✗ 在「${failedTitle || report.step}」失败，正式运行时本轮会被跳过`;
+  else if (report.condition.result) summary = "✓ 满足条件，正式运行时会推送";
+  else summary = "– 不满足条件，正式运行时不会推送";
   const meta = el("span", { class: "dr-meta" },
     `用时 ${report.duration}s · #n 取自${report.history === "current" ? "该任务当前的历史数据" : "配置中的 startup_data"}`);
-  const sections = steps.map((step, i) => {
-    const state = failedAt < 0 || i < failedAt ? "" : i === failedAt ? " fail" : " skip";
-    const children = [el("div", { class: "dr-head" }, DRY_RUN_STEPS[step] + (state === " skip" ? "：未执行" : ""))];
-    if (state !== " skip") children.push(...stepBody(step, report));
-    if (state === " fail") children.push(el("div", { class: "dr-line error-text" }, report.error));
-    return el("div", { class: "dr-step" + state }, ...children);
-  });
-  showDryRun(el("div", { class: "dr-summary " + (report.error ? "fail" : report.condition.result ? "ok" : "") }, summary, meta), ...sections);
+  showDryRun(el("div", { class: "dr-summary " + (report.error ? "fail" : report.condition.result ? "ok" : "") }, el("span", {}, summary), meta), ...sections);
 }
 
 async function dryRun() {
@@ -940,7 +1087,7 @@ async function dryRun() {
   showDryRun(el("div", { class: "dr-summary" }, "试运行中…"));
   try {
     const report = await api("POST", "/api/dry-run", { task: config, name: editingName });
-    renderDryRun(report, "renderer" in config);
+    renderDryRun(report, config);
   } catch (e) {
     showDryRun(el("div", { class: "dr-summary fail" }, "试运行失败：" + e.message));
   } finally {

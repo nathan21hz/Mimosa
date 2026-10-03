@@ -5,12 +5,13 @@ import uuid
 import logging
 import threading
 
-import config as cfg
+from mimosa import config as cfg
 
 logger = logging.getLogger(__name__)
 
 # task config sections a bookmark can hold, and the JSON types allowed for each
 KINDS = {
+    "stage": (dict, list),      # one stage, or the whole stages list
     "source": (dict,),
     "renderer": (dict,),
     "data": (dict, list),       # one data item, or the whole list

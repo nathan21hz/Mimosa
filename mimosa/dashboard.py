@@ -9,10 +9,10 @@ from flask import Flask, Response, request, send_file
 from werkzeug.exceptions import HTTPException
 from werkzeug.serving import make_server
 
-import config as cfg
-import utils.log as log
-from worker import TaskConfigError
-from bookmarks import BookmarkStore, BookmarkError
+from mimosa import config as cfg
+from mimosa.utils import log
+from mimosa.worker import TaskConfigError
+from mimosa.bookmarks import BookmarkStore, BookmarkError
 
 logger = logging.getLogger(__name__)
 

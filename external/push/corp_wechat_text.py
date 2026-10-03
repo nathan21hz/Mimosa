@@ -1,6 +1,8 @@
 import requests
 import json
 
+from mimosa.utils.template import render
+
 def do_push(push_config, data):
     push_url = "https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=" + push_config["key"]
     title = push_config.get("title", "")
@@ -18,9 +20,9 @@ def do_push(push_config, data):
             "articles" : [
                 {
                     "title" : title,
-                    "description" : push_config["text"].format(*data),
-                    "url" : jumpurl.format(*data),
-                    "picurl" : picurl.format(*data)
+                    "description" : render(push_config["text"], data),
+                    "url" : render(jumpurl, data),
+                    "picurl" : render(picurl, data)
                 }
                 ]
             }
@@ -31,7 +33,7 @@ def do_push(push_config, data):
         push_payload = {
             "msgtype": "text",
             "text": {
-                "content": title + push_config["text"].format(*data)
+                "content": title + render(push_config["text"], data)
             }
         }
     a = requests.post(push_url,data=json.dumps(push_payload),timeout=10)

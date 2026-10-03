@@ -5,5 +5,7 @@ __pycache__
 *.pkl
 /logs*
 config.json
-/external/history.json
+/external/tasks.json
+/external/bookmarks.json
+/external/config.json
 /bookmarks.json

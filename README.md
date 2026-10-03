@@ -12,6 +12,21 @@
 - 网页面板：查看任务状态和日志，启停、新增、编辑任务
 - 支持 Docker 部署
 
+## 项目结构
+```
+Mimosa/
+├── main.py                 # 启动入口（也可用 python -m mimosa）
+├── mimosa/                 # 核心代码：调度、执行流程、网页面板、配置、插件加载
+│   ├── utils/              #   日志、模板引擎
+│   └── static/             #   网页面板页面
+├── plugins/                # 内置插件：source / data / renderer / push
+├── external/               # 外部插件、外部依赖；Docker 中挂载，也存放任务文件和历史数据
+├── Dockerfile  docker-entrypoint.sh  requirements.txt
+├── config.example.json     # 本地配置模板，复制为 config.json 使用
+├── config.docker.json      # Docker 镜像内置配置
+└── tasks_demo.json         # 任务示例
+```
+
 ## 运行
 > 需要 Python 3.12
 1. 安装依赖：`pip install -r requirements.txt`
@@ -37,7 +52,7 @@
 - TASK_FILE: 任务文件名，默认`tasks.json`
 - HISTORY_FILE: 历史数据文件名，默认`history.pkl`
 - MAX_WORKERS: 同时执行的任务数上限，默认`8`
-- EXTERNAL_MODULE_FOLDER: 外部模块目录（相对于项目根目录），默认为空即不加载。目录下的 `source`/`data`/`renderer`/`push` 子目录与内置模块目录用法相同（见[插件开发](#插件开发)），其中的 `requirements.txt` 需手动安装（Docker 中会自动安装）
+- EXTERNAL_MODULE_FOLDER: 外部模块目录（相对于项目根目录），默认为空即不加载。目录下的 `source`/`data`/`renderer`/`push` 子目录与内置插件目录 `plugins/` 用法相同（见[插件开发](#插件开发)），其中的 `requirements.txt` 需手动安装（Docker 中会自动安装）
 - DASHBOARD: 是否开启网页面板，默认`false`
 - DASHBOARD_HOST: 面板监听地址，默认`127.0.0.1`（仅本机可访问）。改为`0.0.0.0`对外开放时，务必设置 DASHBOARD_TOKEN
 - DASHBOARD_PORT: 面板端口，默认`8080`
@@ -64,7 +79,9 @@ docker run -d --name mimosa --stop-timeout 30 -v ./external:/app/external -p 127
 - 新增任务：在预填的模板上修改，校验通过后追加到任务文件并立即生效
 - 复制任务：以已有任务的配置为模板（名称自动加 `_copy` 后缀），修改后保存为新任务
 - 试运行：在编辑/新增/复制任务时，用当前（未保存的）配置运行到推送之前，逐步显示请求地址、原始数据、每项解析结果、renderer 输出、每条条件的实际值与结果，以及正式运行时是否会推送；不推送、不写历史、不修改任务文件（Ctrl+Enter）。注意 source 仍会真实发出请求
-- 配置书签：在编辑/新增/复制任务时，可将当前配置中的模块（source、data 或其中一项、renderer、condition 或其中一条、push 或其中一个渠道）收藏为书签，之后在任意任务中一键插入：source/renderer 为替换，data/condition/push 可选追加或替换（Ctrl+Z 可撤销）
+- 配置书签：在编辑/新增/复制任务时，可将当前配置中的模块（source、data 或其中一项、renderer、condition 或其中一条、push 或其中一个渠道；多阶段任务还可收藏某个阶段、整个 stages，以及阶段中的 source / data）收藏为书签，之后在任意任务中一键插入：source/renderer 为替换，data/condition/push 可选追加或替换（Ctrl+Z 可撤销）
+    - 多阶段任务中，source / data 类书签插入到面板上「插入到」所选的阶段；阶段类书签可追加到 stages 末尾，或替换所选阶段（收藏的是整个 stages 时替换全部）
+    - 向没有 stages 的任务插入阶段类书签时，会先把顶层的 source / data 转为第一个阶段
 - 编辑任务配置：校验通过后写入任务文件并立即生效，不影响其他任务；配置无效未能加载的任务也可在此修复
 - 重载全部插件模块和任务文件
 - 查看最近 100 条日志
@@ -87,7 +104,7 @@ docker run -d --name mimosa --stop-timeout 30 -v ./external:/app/external -p 127
 | POST | `/api/dry-run` | 试运行，请求体为 `{"task": 任务配置, "name": 正在编辑的任务名（可选，用于取其历史数据）}` |
 | GET | `/api/logs` | 最近 100 条日志 |
 | GET | `/api/bookmarks` | 全部配置书签 |
-| POST | `/api/bookmarks` | 新增书签，请求体为 `{"name": ..., "kind": "source/data/renderer/condition/push", "value": ...}` |
+| POST | `/api/bookmarks` | 新增书签，请求体为 `{"name": ..., "kind": "stage/source/data/renderer/condition/push", "value": ...}` |
 | DELETE | `/api/bookmarks/<id>` | 删除书签 |
 
 状态码：`400` 配置或请求错误（含修改不存在的任务），`401` token 错误，`404` 启停、清除、读取配置时任务不存在，`504` 主循环繁忙（如 reload 正在等待任务结束）
@@ -104,16 +121,50 @@ docker run -d --name mimosa --stop-timeout 30 -v ./external:/app/external -p 127
 - startup_data: 初始数据，作为首次更新（或 clear 之后）时的上次数据
 - running: 启动时是否运行，默认`true`（运行中的启停不会写回此项）
 - source / data / renderer（可选） / condition / push: 见下
+- stages: 可选，多阶段抓取，见[多阶段](#多阶段-stages)；配置后顶层的 source / data 不再使用
+
+#### 多阶段 stages
+> 需要先抓列表页、再逐个访问详情页这类多步抓取时使用。配置 `stages` 时按顺序执行各阶段，未配置时 source + data 即为唯一的阶段（原用法）。
+
+每个阶段包含：
+- source / data: 与下文的 source、data 相同（动态 url 仍可用）
+- foreach: 可选，`"$n"`，对上一阶段第 n 个数据（须为列表）中的每个元素各请求一次
+- match: 可选，只访问能匹配该正则的元素（元素不是字符串时按其 JSON 文本匹配）
+- limit: 可选，筛选后最多访问前 N 个
+- delay: 可选，两次请求之间的间隔（秒）
+- skip_failed: 可选，某个元素请求或解析失败时跳过它，默认整轮失败
+
+规则：
+- 从第二个阶段起，source 中以 `url` 开头的字段是[模板](#模板)：`{n}` 为上一阶段的第 n 个数据；foreach 阶段中 `{item}` 为当前元素，可写 `{item[0]}`、`{item.id}`。第一个阶段不做模板替换
+- 相对地址（如 `/news/1`）按上一阶段的请求地址补全；上一阶段是 foreach 时不补全，需写出完整地址
+- **只保留最后一个阶段的数据**：condition 的 `$n` / `#n`、push 的 `{n}`、`startup_data` 都对应最后一个阶段
+- foreach 阶段的结果按列组织：每个 data 项得到一个列表，同一下标对应同一个页面；`skip_failed` 跳过的元素会从所有列表中一并去掉；没有元素时各项为空列表
+- 任一阶段失败则整轮失败（不推送、保留历史）
+
+```json
+"stages": [
+    {
+        "source": {"type": "no_auth", "url": "https://site.com/news", "method": "GET", "payload": ""},
+        "data": [{"type": "xpath", "xpath": "//ul[@class='list']//a/@href", "index": "*"}]
+    },
+    {
+        "foreach": "$0", "match": "/news/\\d+", "limit": 10, "delay": 1,
+        "source": {"type": "no_auth", "url": "{item}", "method": "GET", "payload": ""},
+        "data": [{"type": "xpath", "xpath": "//h1/text()", "index": 0}]
+    }
+]
+```
+> 把已有任务改为 stages 后，最终数据的结构通常会变化。建议改完先在面板上试运行，再清空一次历史，避免与旧历史比较产生一次误推送
 
 #### source 数据源
-> 模块存放于source文件夹下
+> 模块存放于 `plugins/source`（或外部模块目录的 `source`）文件夹下
 - type: 模块名，须与文件名相同
 - url: 请求地址，str / dict，支持动态获取（见下）
     > 所有以 `url` 开头的字段均支持动态获取 
 
     ##### url 动态获取
     > 当url为dict时
-    - base: url生成模板，按format函数格式，如 `http://xxx/{0}`
+    - base: url生成模板（见[模板](#模板)），如 `http://xxx/{0}`、`http://xxx/?q={0|urlencode}`
     - source: 与 数据源 source 格式相同
     - data: 与 数据解析 data 格式相同，解析结果依次填入 base
     > 动态获取的字段会被保存至 `*+原字段名` 字段中，如 `url` -> `*url`。
@@ -125,7 +176,7 @@ docker run -d --name mimosa --stop-timeout 30 -v ./external:/app/external -p 127
     - tplink_host_online: TP-Link 路由器在线设备列表。`router_ip`、`key`
 
 #### data 数据解析 
-> 列表，模块存放于data文件夹下。每一项从数据源的原始数据中解析出一个数据，按顺序对应条件中的 `$0`、`$1`……
+> 列表，模块存放于 `plugins/data`（或外部模块目录的 `data`）文件夹下。每一项从数据源的原始数据中解析出一个数据，按顺序对应条件中的 `$0`、`$1`……
 - type: 模块名，须与文件名相同
 - postprocess: 后处理，与data段格式相同，以上一步的解析结果作为输入
 - 其他字段由各模块自定义，内置模块：
@@ -137,7 +188,7 @@ docker run -d --name mimosa --stop-timeout 30 -v ./external:/app/external -p 127
 > 当数据源请求失败、或任一数据解析项失败时，本次更新会被跳过：不判断条件、不推送，历史数据保持不变，等下个周期重试。
 
 #### renderer 渲染器（可选）
-> 当需要复杂处理时对当前和历史数据进行自定义处理，模块存放于renderer文件夹下
+> 当需要复杂处理时对当前和历史数据进行自定义处理，模块存放于 `plugins/renderer`（或外部模块目录的 `renderer`）文件夹下
 - type: 模块名，须与文件名相同
 - 其他自定义参数
 > 当renderer配置项存在时，condition与push会使用renderer的返回值作为输出，且condition中上次数据变量不可用。
@@ -167,16 +218,44 @@ docker run -d --name mimosa --stop-timeout 30 -v ./external:/app/external -p 127
     - *timestamp: 当前时间戳
 
 #### push 推送 
-> 推送配置，单个对象或列表（推送到多个渠道），模块存放于push文件夹下
+> 推送配置，单个对象或列表（推送到多个渠道），模块存放于 `plugins/push`（或外部模块目录的 `push`）文件夹下
 - type: 模块名，须与文件名相同
-- text: 消息模板，按format函数格式，`{0}`、`{1}`……为本次数据（或renderer输出）；列表类型的数据会以 `['A', 'B']` 的形式显示
+- text: 消息模板（见[模板](#模板)），`{0}`、`{1}`……为本次数据（或renderer输出）；列表直接输出会显示为 `['A', 'B']`，可用 `{0|join}` 输出为 `A, B`
 - 其他字段由各模块自定义，内置模块：
     - telegram: `bot_token`、`to`（chat id）
     - file: `file`，追加写入的文件路径（文件须已存在）
     - personal: 自建推送服务。`url`、`token`、`title`、`to`、`push_type`
 
+#### 模板
+push 的 `text`、动态 URL 的 `base` 等使用同一种模板写法，兼容 Python `str.format` 的常用写法：
+
+| 写法 | 含义 |
+|---|---|
+| `{0}` `{1}` | 第 n 个数据；`{-1}` 为最后一个；`{}` 依次取下一个 |
+| `{0[1]}` `{0[-1]}` | 列表中的第 n 项 |
+| `{0[id]}` `{0.id}` | 对象中的键 |
+| `{0:.2f}` | Python 格式说明（不能与过滤器同时使用，此时改用 `format` 过滤器） |
+| `{{` `}}` | 字面的 `{` `}` |
+| `{0\|过滤器}` | 对值做处理，可用 `\|` 串联多个，如 `{0\|lower\|truncate:50}` |
+
+过滤器（参数写在冒号后，含空格或特殊字符时加引号）：
+
+| 过滤器 | 作用 |
+|---|---|
+| `join` / `join:" / "` | 列表用分隔符连接，默认 `, ` |
+| `default:"无"` | 值不存在、为 null、空字符串或空列表时使用该值（也可兜住取不到的下标和键） |
+| `first` / `last` | 列表第一项 / 最后一项 |
+| `len` | 长度 |
+| `upper` / `lower` / `strip` | 大小写转换、去首尾空白 |
+| `truncate:100` | 最多保留 100 个字符，超出部分以 `…` 结尾 |
+| `urlencode` | URL 编码，用于拼接网址参数 |
+| `json` | 输出为 JSON |
+| `format:".2f"` | Python 格式说明 |
+
+> 只能按列表下标和对象键取值，不能访问对象属性。取不到值时报错并写明原因（如 `{3}: no data 3 (there are 2)`），可用 `default` 兜底。
+
 ## 插件开发
-插件为单个 `.py` 文件，放在对应目录（内置目录或外部模块目录下的 `source`/`data`/`renderer`/`push`），文件名即任务配置中的 `type`。外部插件不能与内置插件同名，否则不会被加载。修改后执行 `reload` 即可生效。
+插件为单个 `.py` 文件，放在对应目录（内置的 `plugins/` 或外部模块目录下的 `source`/`data`/`renderer`/`push`），文件名即任务配置中的 `type`。外部插件不能与内置插件同名，否则不会被加载。修改后执行 `reload` 即可生效。
 
 | 类型 | 需要实现的函数 | 参数 | 返回值 |
 |---|---|---|---|
@@ -187,7 +266,8 @@ docker run -d --name mimosa --stop-timeout 30 -v ./external:/app/external -p 127
 
 - source 抛出异常或返回 `None`、data 抛出异常时，视为本次抓取失败（不推送、保留历史）
 - 请求网络时务必设置 `timeout`，避免任务卡住
-- 日志使用标准 logging：`logger = logging.getLogger(__name__)`
+- 日志使用标准 logging：`logger = logging.getLogger(__name__)`，日志标签为模块路径，如 `[plugins.source.no_auth]`、`[external.source.weibo]`
+- 需要模板时使用 `from mimosa.utils.template import render`，`render(push_config["text"], data)`，与内置插件写法一致（旧写法 `from utils.template import render` 仍然可用）
 - 外部插件需要的第三方包写入外部模块目录的 `requirements.txt`
 
 ## Workflow 工作流程

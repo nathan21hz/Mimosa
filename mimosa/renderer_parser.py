@@ -2,7 +2,8 @@ import os
 import importlib
 import logging
 
-import config as cfg
+from mimosa import config as cfg
+from mimosa.utils.plugins import builtin_folder, module_names
 
 logger = logging.getLogger(__name__)
 
@@ -13,17 +14,17 @@ class RendererParserLoader():
 
     def reload_renderer(self):
         renderer = self.renderer
-        renderer_files = os.listdir("./renderer")
+        renderer_files = module_names(builtin_folder("renderer"))
         for r_f in renderer_files:
             renderer_name = r_f.split(".")[0]
             if renderer_name in renderer:
                 importlib.reload(renderer[renderer_name])
             else:
-                renderer[renderer_name] = importlib.import_module("renderer."+renderer_name)
+                renderer[renderer_name] = importlib.import_module("plugins.renderer."+renderer_name)
 
         external_module_folder = cfg.get_value("EXTERNAL_MODULE_FOLDER", "")
         if external_module_folder != "":
-            external_renderer_files = os.listdir(external_module_folder+"/renderer")
+            external_renderer_files = module_names(external_module_folder+"/renderer")
             for e_r_f in external_renderer_files:
                 e_renderer_name = e_r_f.split(".")[0]
                 if e_renderer_name in renderer:

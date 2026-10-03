@@ -2,7 +2,8 @@ import os
 import importlib
 import logging
 
-import config as cfg
+from mimosa import config as cfg
+from mimosa.utils.plugins import builtin_folder, module_names
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +14,7 @@ class SourceLoader():
         self.reload_source_loader()
         
     def reload_source_loader(self):
-        source_files = os.listdir("./source")
+        source_files = module_names(builtin_folder("source"))
         for s_f in source_files:
             source_name = s_f.split(".")[0]
             if source_name in self.sources:
@@ -21,11 +22,11 @@ class SourceLoader():
                 importlib.reload(self.sources[source_name])
             else:
                 logger.info("Load module " + source_name)
-                self.sources[source_name] = importlib.import_module("source."+source_name)
+                self.sources[source_name] = importlib.import_module("plugins.source."+source_name)
 
         external_module_folder = cfg.get_value("EXTERNAL_MODULE_FOLDER", "")
         if external_module_folder != "":
-            external_source_files = os.listdir(external_module_folder+"/source")
+            external_source_files = module_names(external_module_folder+"/source")
             for e_s_f in external_source_files:
                 e_source_name = e_s_f.split(".")[0]
                 if e_source_name in self.sources:
