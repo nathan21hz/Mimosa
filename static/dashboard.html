@@ -165,6 +165,24 @@
     tab-size: 4;
   }
   #editor-error { min-height: 20px; margin-top: 8px; }
+  .dialog-body.has-result #editor { height: min(36vh, 360px); }
+  .dry-run { border: 1px solid var(--border); border-radius: 6px; max-height: 42vh; overflow: auto; }
+  .dr-summary { padding: 8px 10px; font-weight: 600; border-bottom: 1px solid var(--border); display: flex; gap: 8px; flex-wrap: wrap; align-items: baseline; }
+  .dr-summary.ok { color: var(--green); }
+  .dr-summary.fail { color: var(--red); }
+  .dr-meta { margin-left: auto; color: var(--muted); font-weight: 400; font-size: 12px; }
+  .dr-step { padding: 8px 10px; border-bottom: 1px solid var(--border); }
+  .dr-step:last-child { border-bottom: none; }
+  .dr-head { font-weight: 600; }
+  .dr-head::before { content: "✓ "; color: var(--green); }
+  .dr-step.fail .dr-head::before { content: "✗ "; color: var(--red); }
+  .dr-step.skip .dr-head { color: var(--muted); font-weight: 400; }
+  .dr-step.skip .dr-head::before { content: "– "; color: var(--muted); }
+  .dr-line { font-size: 12px; word-break: break-all; margin-top: 2px; }
+  .dr-line .bad { color: var(--red); }
+  .dr-line .good { color: var(--green); }
+  .dr-warn { color: var(--amber); }
+  .dr-pre { white-space: pre-wrap; word-break: break-all; background: var(--code-bg); padding: 6px 8px; border-radius: 4px; max-height: 220px; overflow: auto; margin: 4px 0 0; }
   .bookmarks { display: flex; flex-direction: column; gap: 10px; min-width: 0; max-height: calc(min(60vh, 560px) + 28px); }
   .bm-head { font-weight: 600; }
   .bm-save { display: flex; flex-direction: column; gap: 6px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
@@ -258,6 +276,7 @@
     <div>
       <textarea id="editor" class="mono" spellcheck="false"></textarea>
       <div id="editor-error" class="error-text"></div>
+      <div id="dry-run" class="dry-run" hidden></div>
     </div>
     <aside class="bookmarks">
       <div class="bm-head">书签</div>
@@ -275,6 +294,7 @@
   <div class="dialog-foot">
     <span class="sub" id="edit-hint"></span>
     <div class="spacer"></div>
+    <button id="edit-dry-run" title="用当前配置运行到推送之前，不推送、不写历史（Ctrl+Enter）">试运行</button>
     <button id="edit-format">格式化</button>
     <button id="edit-cancel">取消</button>
     <button id="edit-save" class="primary">保存</button>
@@ -553,6 +573,7 @@ function showEditor(name, title, hint, config) {
   document.getElementById("edit-hint").textContent = hint;
   editor.value = JSON.stringify(config, null, 4);
   editorError.textContent = "";
+  hideDryRun();
   setBookmarkStatus("");
   refreshModules();
   loadBookmarks();
@@ -817,8 +838,123 @@ async function deleteBookmark(bookmark) {
   await loadBookmarks();
 }
 
+// ---------- dry run ----------
+
+const DRY_RUN_STEPS = { url: "请求地址", source: "source 数据源", data: "data 数据解析", renderer: "renderer 渲染", condition: "condition 条件判断" };
+const dryRunBox = document.getElementById("dry-run");
+
+function hideDryRun() {
+  dryRunBox.hidden = true;
+  dryRunBox.replaceChildren();
+  dryRunBox.parentElement.parentElement.classList.remove("has-result");
+}
+
+function showDryRun(...children) {
+  dryRunBox.hidden = false;
+  dryRunBox.replaceChildren(...children);
+  dryRunBox.parentElement.parentElement.classList.add("has-result");
+}
+
+// short JSON text of a value for one line
+function brief(value, max = 160) {
+  const text = JSON.stringify(value);
+  if (text === undefined) return String(value);
+  return text.length > max ? text.slice(0, max) + "…" : text;
+}
+
+function line(...children) {
+  return el("div", { class: "dr-line mono" }, ...children);
+}
+
+function stepBody(step, report) {
+  switch (step) {
+    case "url":
+      return Object.entries(report.urls || {}).map(([key, value]) => line(key + ": " + value));
+    case "source":
+      if (!report.source) return [];
+      return [
+        line(`长度 ${report.source.length} 字符`),
+        el("details", {},
+          el("summary", { class: "sub" }, report.source.length > report.source.preview.length ? `原始数据（前 ${report.source.preview.length} 字符）` : "原始数据"),
+          el("pre", { class: "dr-pre mono" }, report.source.preview)),
+      ];
+    case "data":
+      return (report.data || []).map((item, i) => item.error
+        ? line(`$${i} · ${item.type} → `, el("span", { class: "bad" }, item.error))
+        : line(`$${i} · ${item.type} → ${brief(item.value)}`));
+    case "renderer": {
+      if (!report.renderer) return [];
+      const lines = [line("输出 → " + brief(report.renderer.output))];
+      if (report.renderer.error) lines.push(el("div", { class: "dr-line dr-warn" }, "渲染出错，输出为 [0]：" + report.renderer.error));
+      return lines;
+    }
+    case "condition": {
+      if (!report.condition) return [];
+      const lines = report.condition.items.map((item, i) => {
+        const operand = (expr, value) => typeof expr === "string" && /^[$#]\d+$|^\*timestamp$/.test(expr) ? `${expr}(${brief(value, 60)})` : brief(value, 60);
+        const parts = [`${i + 1}. ${item.conn} · ${operand(item.var, item.var_value)} ${item.op} ${operand(item.target, item.target_value)} → `];
+        if (item.skipped) parts.push(el("span", { class: "bad" }, "已跳过：" + item.skipped));
+        else {
+          parts.push(el("span", { class: item.result ? "good" : "bad" }, item.result ? "真" : "假"));
+          if (item.error) parts.push(el("span", { class: "bad" }, "（出错：" + item.error + "）"));
+        }
+        return line(...parts);
+      });
+      if (!lines.length) lines.push(line("没有条件，每次都推送"));
+      return lines;
+    }
+  }
+  return [];
+}
+
+function renderDryRun(report, hasRenderer) {
+  const steps = ["url", "source", "data", ...(hasRenderer ? ["renderer"] : []), "condition"];
+  const failedAt = report.error ? steps.indexOf(report.step) : -1;
+  let summary;
+  if (report.error) summary = el("span", {}, `✗ 在「${DRY_RUN_STEPS[report.step] || report.step}」失败，正式运行时本轮会被跳过`);
+  else if (report.condition.result) summary = el("span", {}, "✓ 满足条件，正式运行时会推送");
+  else summary = el("span", {}, "– 不满足条件，正式运行时不会推送");
+  const meta = el("span", { class: "dr-meta" },
+    `用时 ${report.duration}s · #n 取自${report.history === "current" ? "该任务当前的历史数据" : "配置中的 startup_data"}`);
+  const sections = steps.map((step, i) => {
+    const state = failedAt < 0 || i < failedAt ? "" : i === failedAt ? " fail" : " skip";
+    const children = [el("div", { class: "dr-head" }, DRY_RUN_STEPS[step] + (state === " skip" ? "：未执行" : ""))];
+    if (state !== " skip") children.push(...stepBody(step, report));
+    if (state === " fail") children.push(el("div", { class: "dr-line error-text" }, report.error));
+    return el("div", { class: "dr-step" + state }, ...children);
+  });
+  showDryRun(el("div", { class: "dr-summary " + (report.error ? "fail" : report.condition.result ? "ok" : "") }, summary, meta), ...sections);
+}
+
+async function dryRun() {
+  const config = parseEditor();
+  if (config === undefined) return;
+  if (!isObject(config)) {
+    editorError.textContent = "任务配置必须是 JSON 对象";
+    return;
+  }
+  editorError.textContent = "";
+  const button = document.getElementById("edit-dry-run");
+  button.disabled = true;
+  button.textContent = "试运行中…";
+  showDryRun(el("div", { class: "dr-summary" }, "试运行中…"));
+  try {
+    const report = await api("POST", "/api/dry-run", { task: config, name: editingName });
+    renderDryRun(report, "renderer" in config);
+  } catch (e) {
+    showDryRun(el("div", { class: "dr-summary fail" }, "试运行失败：" + e.message));
+  } finally {
+    button.disabled = false;
+    button.textContent = "试运行";
+  }
+}
+document.getElementById("edit-dry-run").addEventListener("click", dryRun);
+
 editor.addEventListener("keydown", (event) => {
-  if ((event.ctrlKey || event.metaKey) && event.key === "s") {
+  if ((event.ctrlKey || event.metaKey) && event.key === "Enter") {
+    event.preventDefault();
+    dryRun();
+  } else if ((event.ctrlKey || event.metaKey) && event.key === "s") {
     event.preventDefault();
     saveEditor();
   } else if (event.key === "Tab") {

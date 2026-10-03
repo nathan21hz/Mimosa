@@ -310,6 +310,15 @@ class Worker():
             wait(pending)
         self.running_tasks = {}
 
+    # Dry run
+
+    def dry_run_context(self, name, task):
+        """ Pipeline and history data to dry run a task config with, called in the main loop.
+        Uses the current history of the task being edited (name), otherwise the config's startup data. """
+        if name in self.history:
+            return self.pipeline, copy.deepcopy(self.history[name]["data"]), "current"
+        return self.pipeline, copy.deepcopy(task.get("startup_data", [])), "startup"
+
     # Status
 
     def status(self):

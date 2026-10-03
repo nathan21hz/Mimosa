@@ -31,7 +31,8 @@ class RendererParserLoader():
                 else:
                     renderer[e_renderer_name] = importlib.import_module(external_module_folder.replace("/",".")+".renderer."+e_renderer_name)
 
-    def do_render(self, renderer_config, data, hist_data):
+    def do_render(self, renderer_config, data, hist_data, trace=None):
+        """ Render data, [0] if the renderer fails. trace (a dict, for the dry run) records the error """
         if renderer_config["type"] in self.renderer:
             try:
                 rendered_data = self.renderer[renderer_config["type"]].do_render(renderer_config, data, hist_data)
@@ -39,6 +40,10 @@ class RendererParserLoader():
                 return(rendered_data)
             except Exception as e:
                 logger.error("%s: %s", renderer_config["type"], e)
+                error = "{}: {}".format(type(e).__name__, e)
         else:
-            logger.error("No such renderer type: {}.".format(renderer_config["type"]))
+            error = "No such renderer type: {}.".format(renderer_config["type"])
+            logger.error(error)
+        if trace is not None:
+            trace["error"] = error
         return [0]

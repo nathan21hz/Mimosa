@@ -40,15 +40,13 @@ def var_parser(var,data,hist_data):
         if var.startswith("$"):
             var_index = int(var[1:])
             if var_index >= len(data):
-                logger.error("Data index error")
-            else:
-                tmp_var = data[var_index]
+                raise IndexError("No such data: {} (there are {})".format(var, len(data)))
+            tmp_var = data[var_index]
         elif var.startswith("#"):
             var_index = int(var[1:])
             if var_index >= len(hist_data):
-                logger.error("Data index error")
-            else:
-                tmp_var = hist_data[var_index]
+                raise IndexError("No such history data: {} (there are {})".format(var, len(hist_data)))
+            tmp_var = hist_data[var_index]
         elif var == "*timestamp":
             tmp_var = int(time.time())
         else:
@@ -59,16 +57,25 @@ def var_parser(var,data,hist_data):
 
 
 def condition_parser(condition_list, data, hist_data):
+    return evaluate(condition_list, data, hist_data)[0]
+
+
+def evaluate(condition_list, data, hist_data):
+    """ Evaluate the conditions in order, return (result, details of each condition for the dry run) """
     res = True
+    details = []
     for condition in condition_list:
+        detail = {key: condition.get(key) for key in ("conn", "var", "op", "target")}
+        details.append(detail)
         # get variable
         tmp_var = var_parser(condition["var"],data,hist_data)
-        # get target 
+        # get target
         tmp_target = var_parser(condition["target"],data,hist_data)
-        # print(tmp_var,tmp_target)
+        detail["var_value"], detail["target_value"] = tmp_var, tmp_target
         # compare operation
         if condition["op"] not in op_dict:
             logger.error("Operation error")
+            detail["skipped"] = "Unknown op: {}".format(condition["op"])
             continue
         if condition.get("ignore_case"):
             tmp_var = lower(tmp_var)
@@ -84,14 +91,18 @@ def condition_parser(condition_list, data, hist_data):
         except Exception as e:
             # a failed operation never satisfies the condition, even with "not"
             logger.error("Operation error: {}".format(str(e)))
+            detail["error"] = str(e)
             tmp_res = False
+        detail["result"] = tmp_res
         # connection operation
         if condition["conn"] not in ["and", "or"]:
             logger.error("Connection op error")
+            detail["skipped"] = "Unknown conn: {}".format(condition["conn"])
             continue
         else:
             if condition["conn"] == "and":
                 res = res and tmp_res
             elif condition["conn"] == "or":
                 res = res or tmp_res
-    return res
+        detail["total"] = res
+    return res, details

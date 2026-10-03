@@ -63,6 +63,7 @@ docker run -d --name mimosa --stop-timeout 30 -v ./external:/app/external -p 127
 - 启动/暂停任务，清空任务历史数据
 - 新增任务：在预填的模板上修改，校验通过后追加到任务文件并立即生效
 - 复制任务：以已有任务的配置为模板（名称自动加 `_copy` 后缀），修改后保存为新任务
+- 试运行：在编辑/新增/复制任务时，用当前（未保存的）配置运行到推送之前，逐步显示请求地址、原始数据、每项解析结果、renderer 输出、每条条件的实际值与结果，以及正式运行时是否会推送；不推送、不写历史、不修改任务文件（Ctrl+Enter）。注意 source 仍会真实发出请求
 - 配置书签：在编辑/新增/复制任务时，可将当前配置中的模块（source、data 或其中一项、renderer、condition 或其中一条、push 或其中一个渠道）收藏为书签，之后在任意任务中一键插入：source/renderer 为替换，data/condition/push 可选追加或替换（Ctrl+Z 可撤销）
 - 编辑任务配置：校验通过后写入任务文件并立即生效，不影响其他任务；配置无效未能加载的任务也可在此修复
 - 重载全部插件模块和任务文件
@@ -83,6 +84,7 @@ docker run -d --name mimosa --stop-timeout 30 -v ./external:/app/external -p 127
 | POST | `/api/tasks/<name>/stop` | 暂停任务 |
 | POST | `/api/tasks/<name>/clear` | 清除任务历史数据 |
 | POST | `/api/reload` | 重载全部插件模块和任务文件 |
+| POST | `/api/dry-run` | 试运行，请求体为 `{"task": 任务配置, "name": 正在编辑的任务名（可选，用于取其历史数据）}` |
 | GET | `/api/logs` | 最近 100 条日志 |
 | GET | `/api/bookmarks` | 全部配置书签 |
 | POST | `/api/bookmarks` | 新增书签，请求体为 `{"name": ..., "kind": "source/data/renderer/condition/push", "value": ...}` |

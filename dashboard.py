@@ -46,6 +46,7 @@ class Dashboard():
         self.app.add_url_rule("/api/tasks/<name>/config", view_func=self.get_task_config)
         self.app.add_url_rule("/api/tasks/<name>/config", view_func=self.put_task_config, methods=["PUT"])
         self.app.add_url_rule("/api/reload", view_func=self.reload, methods=["POST"])
+        self.app.add_url_rule("/api/dry-run", view_func=self.dry_run, methods=["POST"])
         self.app.add_url_rule("/api/logs", view_func=self.get_logs)
         self.app.add_url_rule("/api/bookmarks", view_func=self.get_bookmarks)
         self.app.add_url_rule("/api/bookmarks", view_func=self.add_bookmark, methods=["POST"])
@@ -115,6 +116,19 @@ class Dashboard():
         except TaskConfigError as e:
             return error_response(str(e), 400)
         return json_response({})
+
+    def dry_run(self):
+        """ Run an unsaved task config up to (not including) push and report each step """
+        body = request.get_json(silent=True)
+        if not isinstance(body, dict) or not isinstance(body.get("task"), dict):
+            return error_response("Request body must be {\"task\": {...}, \"name\": ...}.", 400)
+        task = body["task"]
+        # only taking the history copy needs the main loop; the run itself makes network requests,
+        # so it happens in this request thread instead of blocking the main loop
+        pipeline, hist_data, history = self.client.call(lambda worker: worker.dry_run_context(body.get("name"), task))
+        report = pipeline.dry_run(task, hist_data)
+        report["history"] = history
+        return json_response(report)
 
     def reload(self):
         self.client.call(lambda worker: worker.reload())
