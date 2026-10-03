@@ -122,8 +122,9 @@ docker run -d --name mimosa --stop-timeout 30 -v ./external:/app/external -p 127
 - postprocess: 后处理，与data段格式相同，以上一步的解析结果作为输入
 - 其他字段由各模块自定义，内置模块：
     - json: `route`，取值路径列表，如 `["data", 0, "title"]`。路径中的 `"*"` 表示对列表中每个元素（或对象的每个值）继续按之后的路径取值，结果组成列表，如 `["data", "list", "*", "title"]` -> `["A", "B"]`；可选 `skip_missing`（默认`false`），为`true`时跳过缺少该 key 的元素，否则视为解析失败；可选 `allow_missing`（默认`false`），为`true`时取不到的值记为`null`而不视为解析失败（路径中取不到时结果为`null`，`"*"` 中取不到的元素保留为`null`；与 `skip_missing` 同时开启时，`"*"` 中的元素按 `skip_missing` 跳过）
-    - regexp: `exp` 正则表达式，`index` 取第几个匹配
-    - xpath: `xpath` 表达式，`index` 取第几个结果；`index` 小于 0 时拼接所有结果
+    - regexp: `exp` 正则表达式，`index` 取第几个匹配；`index` 为 `"*"` 时返回全部匹配组成的列表（正则含多个分组时每项为各分组组成的列表）
+    - xpath: `xpath` 表达式，`index` 取第几个结果；`index` 小于 0 时拼接所有结果；`index` 为 `"*"` 时返回全部结果组成的列表（选中元素时取其文本内容）
+    > `index` 为 `"*"` 时没有匹配结果会得到空列表，不视为解析失败
 
 > 当数据源请求失败、或任一数据解析项失败时，本次更新会被跳过：不判断条件、不推送，历史数据保持不变，等下个周期重试。
 
