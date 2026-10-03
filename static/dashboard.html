@@ -143,7 +143,7 @@
   #logs .DEBUG { color: var(--muted); }
 
   dialog {
-    width: min(860px, calc(100vw - 32px));
+    width: min(1180px, calc(100vw - 32px));
     border: 1px solid var(--border);
     border-radius: 10px;
     padding: 0;
@@ -152,7 +152,7 @@
   }
   dialog::backdrop { background: rgba(0, 0, 0, .4); }
   .dialog-head { padding: 14px 16px; border-bottom: 1px solid var(--border); font-weight: 600; word-break: break-all; }
-  .dialog-body { padding: 12px 16px; }
+  .dialog-body { padding: 12px 16px; display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 14px; }
   #editor {
     width: 100%;
     height: min(60vh, 560px);
@@ -165,6 +165,31 @@
     tab-size: 4;
   }
   #editor-error { min-height: 20px; margin-top: 8px; }
+  .bookmarks { display: flex; flex-direction: column; gap: 10px; min-width: 0; max-height: calc(min(60vh, 560px) + 28px); }
+  .bm-head { font-weight: 600; }
+  .bm-save { display: flex; flex-direction: column; gap: 6px; padding-bottom: 10px; border-bottom: 1px solid var(--border); }
+  .bm-save-row { display: flex; gap: 6px; }
+  .bm-save select, .bm-save input {
+    font: inherit;
+    min-width: 0;
+    padding: 4px 6px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--panel);
+    color: var(--text);
+  }
+  .bm-save input { flex: 1; }
+  #bm-status { min-height: 18px; font-size: 12px; color: var(--muted); }
+  #bm-status.error { color: var(--red); }
+  .bm-list { overflow: auto; display: flex; flex-direction: column; gap: 8px; }
+  .bm-item { border: 1px solid var(--border); border-radius: 6px; padding: 8px; }
+  .bm-item-head { display: flex; align-items: center; gap: 6px; }
+  .bm-name { font-weight: 600; flex: 1; overflow-wrap: anywhere; }
+  .bm-kind { font-size: 11px; color: var(--muted); background: var(--gray-bg); border-radius: 4px; padding: 0 6px; }
+  .bm-preview { margin: 4px 0 6px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .bm-actions { display: flex; gap: 6px; }
+  .bm-actions button { padding: 2px 8px; font-size: 12px; }
+  .bm-empty { color: var(--muted); font-size: 12px; }
   .dialog-foot { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--border); align-items: center; }
 
   #toast {
@@ -195,6 +220,8 @@
     .actions { flex-wrap: wrap; }
     td[data-label]::before { content: attr(data-label); display: block; color: var(--muted); font-size: 12px; }
     .data { max-width: 100%; }
+    .dialog-body { grid-template-columns: 1fr; }
+    .bookmarks { max-height: 320px; }
   }
 </style>
 </head>
@@ -228,8 +255,22 @@
 <dialog id="edit-dialog">
   <div class="dialog-head" id="edit-title">编辑任务</div>
   <div class="dialog-body">
-    <textarea id="editor" class="mono" spellcheck="false"></textarea>
-    <div id="editor-error" class="error-text"></div>
+    <div>
+      <textarea id="editor" class="mono" spellcheck="false"></textarea>
+      <div id="editor-error" class="error-text"></div>
+    </div>
+    <aside class="bookmarks">
+      <div class="bm-head">书签</div>
+      <div class="bm-save">
+        <select id="bm-module" title="从当前配置中选择要收藏的模块"></select>
+        <div class="bm-save-row">
+          <input id="bm-name" maxlength="100" placeholder="书签名称">
+          <button id="bm-add">收藏</button>
+        </div>
+        <div id="bm-status"></div>
+      </div>
+      <div id="bm-list" class="bm-list"></div>
+    </aside>
   </div>
   <div class="dialog-foot">
     <span class="sub" id="edit-hint"></span>
@@ -247,6 +288,7 @@ const REFRESH_MS = 3000;
 const TOKEN_KEY = "mimosa-token";
 const expanded = new Set();   // task names whose data cell is expanded
 let editingName = null;
+let taskNames = new Set();   // names of all tasks, for naming copies
 let refreshTimer = null;
 let lastRefresh = 0;
 
@@ -394,6 +436,7 @@ function actionsCell(task) {
     }, "danger"));
   }
   buttons.push(actionButton("编辑", () => openEditor(name)));
+  buttons.push(actionButton("复制", () => openCopy(name)));
   return el("div", { class: "actions" }, ...buttons);
 }
 
@@ -446,6 +489,7 @@ async function refresh() {
   const state = document.getElementById("refresh-state");
   try {
     const [tasks, logs] = await Promise.all([api("GET", "/api/tasks"), api("GET", "/api/logs")]);
+    taskNames = new Set(tasks.map(t => t.name));
     renderStats(tasks);
     renderTasks(tasks);
     renderLogs(logs.logs);
@@ -509,8 +553,37 @@ function showEditor(name, title, hint, config) {
   document.getElementById("edit-hint").textContent = hint;
   editor.value = JSON.stringify(config, null, 4);
   editorError.textContent = "";
+  setBookmarkStatus("");
+  refreshModules();
+  loadBookmarks();
   dialog.showModal();
   editor.focus();
+  if (name === null) selectName(config.name);
+}
+
+// select the task name in the editor, so a new name can be typed right away
+function selectName(name) {
+  const text = JSON.stringify(name);
+  const start = editor.value.indexOf('"name": ' + text);
+  if (start < 0) return;
+  const valueStart = start + '"name": '.length + 1;
+  editor.setSelectionRange(valueStart, valueStart + text.length - 2);
+}
+
+function copyName(name) {
+  let copy = name + "_copy";
+  for (let i = 2; taskNames.has(copy); i++) copy = name + "_copy" + i;
+  return copy;
+}
+
+async function openCopy(name) {
+  try {
+    const config = await api("GET", "/api/tasks/" + encodeURIComponent(name) + "/config");
+    config.name = copyName(name);
+    showEditor(null, "复制任务：" + name, "修改后保存为新任务，原任务不受影响（Ctrl+S）", config);
+  } catch (e) {
+    toast(e.message, true);
+  }
 }
 
 async function openEditor(name) {
@@ -567,6 +640,182 @@ async function saveEditor() {
   }
 }
 document.getElementById("edit-save").addEventListener("click", saveEditor);
+
+// ---------- bookmarks ----------
+
+const KIND_ORDER = ["source", "data", "renderer", "condition", "push"];
+const LIST_KINDS = ["data", "condition", "push"];   // can be appended to
+const bmModule = document.getElementById("bm-module");
+const bmName = document.getElementById("bm-name");
+let moduleOptions = [];   // modules of the config in the editor: {kind, path, label}
+let bookmarks = [];
+
+function setBookmarkStatus(message, isError) {
+  const node = document.getElementById("bm-status");
+  node.textContent = message;
+  node.className = isError ? "error" : "";
+}
+
+function typeLabel(value) {
+  return value && typeof value === "object" && !Array.isArray(value) && value.type ? " · " + value.type : "";
+}
+
+function conditionLabel(condition) {
+  if (!condition || typeof condition !== "object") return "";
+  const text = ` · ${condition.var} ${condition.op} ${JSON.stringify(condition.target)}`;
+  return text.length > 40 ? text.slice(0, 40) + "…" : text;
+}
+
+function isObject(value) {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+// modules of a task config that can be bookmarked; whole lists are offered when they have more than one item
+function listModules(task) {
+  const options = [];
+  if (isObject(task.source)) options.push({ kind: "source", path: ["source"], label: "source" + typeLabel(task.source) });
+  for (const [kind, unit, label] of [["data", "项", typeLabel], ["condition", "条", conditionLabel]]) {
+    if (!Array.isArray(task[kind])) continue;
+    if (task[kind].length > 1) options.push({ kind, path: [kind], label: `${kind}（全部 ${task[kind].length} ${unit}）` });
+    task[kind].forEach((item, i) => options.push({ kind, path: [kind, i], label: `${kind}[${i}]` + label(item) }));
+  }
+  if (isObject(task.renderer)) options.push({ kind: "renderer", path: ["renderer"], label: "renderer" + typeLabel(task.renderer) });
+  if (Array.isArray(task.push)) {
+    if (task.push.length > 1) options.push({ kind: "push", path: ["push"], label: `push（全部 ${task.push.length} 个）` });
+    task.push.forEach((item, i) => options.push({ kind: "push", path: ["push", i], label: `push[${i}]` + typeLabel(item) }));
+  } else if (isObject(task.push)) {
+    options.push({ kind: "push", path: ["push"], label: "push" + typeLabel(task.push) });
+  }
+  return options;
+}
+
+// rebuild the module choices from the config in the editor
+function refreshModules() {
+  let task = null;
+  try { task = JSON.parse(editor.value); } catch (e) { /* invalid while typing */ }
+  const previous = bmModule.value;
+  moduleOptions = isObject(task) ? listModules(task) : [];
+  const placeholder = !isObject(task) ? "（配置 JSON 有误）" : moduleOptions.length ? null : "（没有可收藏的模块）";
+  bmModule.replaceChildren(...(placeholder
+    ? [el("option", { value: "" }, placeholder)]
+    : moduleOptions.map(option => el("option", { value: option.path.join(".") }, option.label))));
+  if (moduleOptions.some(option => option.path.join(".") === previous)) bmModule.value = previous;
+  bmModule.disabled = !!placeholder;
+  document.getElementById("bm-add").disabled = !!placeholder;
+  updateNamePlaceholder();
+}
+
+function selectedModule() {
+  return moduleOptions.find(option => option.path.join(".") === bmModule.value);
+}
+
+function updateNamePlaceholder() {
+  const option = selectedModule();
+  bmName.placeholder = option ? option.label : "书签名称";
+}
+
+let refreshModulesTimer = null;
+editor.addEventListener("input", () => {
+  clearTimeout(refreshModulesTimer);
+  refreshModulesTimer = setTimeout(refreshModules, 300);
+});
+bmModule.addEventListener("change", updateNamePlaceholder);
+
+async function addBookmark() {
+  refreshModules();
+  const option = selectedModule();
+  if (!option) return;
+  let value = JSON.parse(editor.value);
+  for (const key of option.path) value = value[key];
+  const name = bmName.value.trim() || option.label;
+  try {
+    await api("POST", "/api/bookmarks", { name, kind: option.kind, value });
+    bmName.value = "";
+    setBookmarkStatus("已收藏：" + name);
+    await loadBookmarks();
+  } catch (e) {
+    setBookmarkStatus("收藏失败：" + e.message, true);
+  }
+}
+document.getElementById("bm-add").addEventListener("click", addBookmark);
+bmName.addEventListener("keydown", (event) => { if (event.key === "Enter") addBookmark(); });
+
+async function loadBookmarks() {
+  try {
+    bookmarks = await api("GET", "/api/bookmarks");
+  } catch (e) {
+    bookmarks = [];
+    setBookmarkStatus("书签加载失败：" + e.message, true);
+  }
+  renderBookmarks();
+}
+
+function renderBookmarks() {
+  const list = document.getElementById("bm-list");
+  if (!bookmarks.length) {
+    list.replaceChildren(el("div", { class: "bm-empty" }, "还没有书签。在上方选择当前配置中的模块收藏后，新建或编辑任务时可以直接插入。"));
+    return;
+  }
+  const sorted = [...bookmarks].sort((a, b) => KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind) || a.created - b.created);
+  list.replaceChildren(...sorted.map(bookmark => {
+    const buttons = [];
+    if (LIST_KINDS.includes(bookmark.kind)) {
+      buttons.push(el("button", { title: `追加到 ${bookmark.kind}`, onclick: () => insertBookmark(bookmark, "append") }, "追加"));
+    }
+    buttons.push(el("button", { title: `替换整个 ${bookmark.kind}`, onclick: () => insertBookmark(bookmark, "replace") }, "替换"));
+    buttons.push(el("button", { class: "danger", onclick: () => deleteBookmark(bookmark) }, "删除"));
+    return el("div", { class: "bm-item" },
+      el("div", { class: "bm-item-head" }, el("span", { class: "bm-name" }, bookmark.name), el("span", { class: "bm-kind" }, bookmark.kind)),
+      el("div", { class: "bm-preview mono", title: JSON.stringify(bookmark.value, null, 2) }, JSON.stringify(bookmark.value)),
+      el("div", { class: "bm-actions" }, ...buttons));
+  }));
+}
+
+// replace the editor text as one edit, so Ctrl+Z can undo it
+function setEditorText(text) {
+  editor.focus();
+  editor.select();
+  if (!document.execCommand("insertText", false, text)) editor.value = text;
+}
+
+function insertBookmark(bookmark, mode) {
+  let task;
+  try {
+    task = JSON.parse(editor.value);
+  } catch (e) {
+    setBookmarkStatus("配置 JSON 有误，无法插入：" + e.message, true);
+    return;
+  }
+  if (!isObject(task)) {
+    setBookmarkStatus("任务配置必须是 JSON 对象", true);
+    return;
+  }
+  const value = JSON.parse(JSON.stringify(bookmark.value));
+  const current = task[bookmark.kind];
+  if (mode === "append") {
+    const items = Array.isArray(value) ? value : [value];
+    if (Array.isArray(current)) task[bookmark.kind] = current.concat(items);
+    else if (isObject(current)) task[bookmark.kind] = [current, ...items];   // single push channel becomes a list
+    else task[bookmark.kind] = items;
+  } else {
+    task[bookmark.kind] = ["data", "condition"].includes(bookmark.kind) && !Array.isArray(value) ? [value] : value;
+  }
+  setEditorText(JSON.stringify(task, null, 4));
+  editorError.textContent = "";
+  refreshModules();
+  setBookmarkStatus(`已${mode === "append" ? "追加" : "替换"}：${bookmark.name}（Ctrl+Z 可撤销）`);
+}
+
+async function deleteBookmark(bookmark) {
+  if (!confirm(`删除书签「${bookmark.name}」？`)) return;
+  try {
+    await api("DELETE", "/api/bookmarks/" + encodeURIComponent(bookmark.id));
+    setBookmarkStatus("已删除：" + bookmark.name);
+  } catch (e) {
+    setBookmarkStatus("删除失败：" + e.message, true);
+  }
+  await loadBookmarks();
+}
 
 editor.addEventListener("keydown", (event) => {
   if ((event.ctrlKey || event.metaKey) && event.key === "s") {

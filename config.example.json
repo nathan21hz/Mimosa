@@ -3,6 +3,7 @@
     "TASK_FILE": "tasks.json",
     "EXTERNAL_MODULE_FOLDER":"external",
     "HISTORY_FILE":"",
+    "BOOKMARK_FILE": "bookmarks.json",
     "DASHBOARD": false,
     "DASHBOARD_HOST": "127.0.0.1",
     "DASHBOARD_PORT": 8080,

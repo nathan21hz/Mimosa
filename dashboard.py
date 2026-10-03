@@ -12,6 +12,7 @@ from werkzeug.serving import make_server
 import config as cfg
 import utils.log as log
 from worker import TaskConfigError
+from bookmarks import BookmarkStore, BookmarkError
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +32,7 @@ class Dashboard():
     """ Web dashboard. All worker access goes through client.call(), which runs it in the main loop thread """
     def __init__(self, client) -> None:
         self.client = client  # main.MainLoopClient
+        self.bookmarks = BookmarkStore()  # not worker state, so used directly from web threads
         self.token = cfg.get_value("DASHBOARD_TOKEN", "")
         self.app = Flask(__name__)
         self.app.before_request(self.check_token)
@@ -45,6 +47,9 @@ class Dashboard():
         self.app.add_url_rule("/api/tasks/<name>/config", view_func=self.put_task_config, methods=["PUT"])
         self.app.add_url_rule("/api/reload", view_func=self.reload, methods=["POST"])
         self.app.add_url_rule("/api/logs", view_func=self.get_logs)
+        self.app.add_url_rule("/api/bookmarks", view_func=self.get_bookmarks)
+        self.app.add_url_rule("/api/bookmarks", view_func=self.add_bookmark, methods=["POST"])
+        self.app.add_url_rule("/api/bookmarks/<bookmark_id>", view_func=self.delete_bookmark, methods=["DELETE"])
         host = cfg.get_value("DASHBOARD_HOST", "127.0.0.1")
         port = cfg.get_value("DASHBOARD_PORT", 8080)
         self.server = make_server(host, port, self.app, threaded=True)
@@ -117,3 +122,21 @@ class Dashboard():
 
     def get_logs(self):
         return json_response({"logs": log.get_log_record()})
+
+    def get_bookmarks(self):
+        return json_response(self.bookmarks.list())
+
+    def add_bookmark(self):
+        body = request.get_json(silent=True)
+        if not isinstance(body, dict):
+            return error_response("Request body must be a JSON object.", 400)
+        try:
+            bookmark = self.bookmarks.add(body.get("name"), body.get("kind"), body.get("value"))
+        except BookmarkError as e:
+            return error_response(str(e), 400)
+        return json_response(bookmark)
+
+    def delete_bookmark(self, bookmark_id):
+        if not self.bookmarks.delete(bookmark_id):
+            return error_response("No such bookmark: {}.".format(bookmark_id), 404)
+        return json_response({})

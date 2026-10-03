@@ -42,9 +42,10 @@
 - DASHBOARD_HOST: 面板监听地址，默认`127.0.0.1`（仅本机可访问）。改为`0.0.0.0`对外开放时，务必设置 DASHBOARD_TOKEN
 - DASHBOARD_PORT: 面板端口，默认`8080`
 - DASHBOARD_TOKEN: 面板访问令牌，默认为空即不校验。设置后网页首次访问时会要求输入
+- BOOKMARK_FILE: 面板配置书签的保存文件，默认为任务文件同目录下的 `bookmarks.json`（书签按原样保存配置内容，可能包含 token 等敏感信息）
 
 ## Docker
-镜像使用 `config.docker.json` 作为配置，`external` 目录挂载到宿主机，其中保存外部插件、`requirements.txt`、`tasks.json` 和 `history.pkl`。容器每次启动前会安装 `external/requirements.txt` 中的依赖（如果有）。
+镜像使用 `config.docker.json` 作为配置，`external` 目录挂载到宿主机，其中保存外部插件、`requirements.txt`、`tasks.json`、`history.pkl` 和面板书签 `bookmarks.json`。容器每次启动前会安装 `external/requirements.txt` 中的依赖（如果有）。
 ```
 docker build -t mimosa .
 docker run -d --name mimosa --stop-timeout 30 -v ./external:/app/external -p 127.0.0.1:8080:8080 mimosa
@@ -61,6 +62,8 @@ docker run -d --name mimosa --stop-timeout 30 -v ./external:/app/external -p 127
 - 查看每个任务的状态（运行中/执行中/已暂停/配置无效）、上次/下次运行时间、最近一次结果（成功·已推送 / 成功·未触发 / 失败原因）和最新数据
 - 启动/暂停任务，清空任务历史数据
 - 新增任务：在预填的模板上修改，校验通过后追加到任务文件并立即生效
+- 复制任务：以已有任务的配置为模板（名称自动加 `_copy` 后缀），修改后保存为新任务
+- 配置书签：在编辑/新增/复制任务时，可将当前配置中的模块（source、data 或其中一项、renderer、condition 或其中一条、push 或其中一个渠道）收藏为书签，之后在任意任务中一键插入：source/renderer 为替换，data/condition/push 可选追加或替换（Ctrl+Z 可撤销）
 - 编辑任务配置：校验通过后写入任务文件并立即生效，不影响其他任务；配置无效未能加载的任务也可在此修复
 - 重载全部插件模块和任务文件
 - 查看最近 100 条日志
@@ -81,6 +84,9 @@ docker run -d --name mimosa --stop-timeout 30 -v ./external:/app/external -p 127
 | POST | `/api/tasks/<name>/clear` | 清除任务历史数据 |
 | POST | `/api/reload` | 重载全部插件模块和任务文件 |
 | GET | `/api/logs` | 最近 100 条日志 |
+| GET | `/api/bookmarks` | 全部配置书签 |
+| POST | `/api/bookmarks` | 新增书签，请求体为 `{"name": ..., "kind": "source/data/renderer/condition/push", "value": ...}` |
+| DELETE | `/api/bookmarks/<id>` | 删除书签 |
 
 状态码：`400` 配置或请求错误（含修改不存在的任务），`401` token 错误，`404` 启停、清除、读取配置时任务不存在，`504` 主循环繁忙（如 reload 正在等待任务结束）
 

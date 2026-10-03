@@ -14,6 +14,7 @@ external
 # local runtime files and secrets, the image uses config.docker.json
 config.json
 tasks.json
+bookmarks.json
 *.pkl
 logs*
 
